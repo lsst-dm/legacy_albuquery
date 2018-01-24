@@ -1,12 +1,15 @@
-package org.lsst.dax.querque
+package org.lsst.dax.albuquery
 import com.facebook.presto.sql.tree.*
 
 class Analyzer {
 
 
     class TableAndColumnExtractor : DefaultTraversalVisitor<Void, Void>(){
-        val columns = hashMapOf<QualifiedName, ColumnMetadata>()
-        val tables = arrayListOf<Relation>()
+        val columns = hashMapOf<QualifiedName, ParsedColumn>()
+        val allColumnTables = arrayListOf<QualifiedName>()
+        val relations = arrayListOf<Relation>()
+        val tables = arrayListOf<Table>()
+        var allColumns = false
 
         override fun visitQuerySpecification(node: QuerySpecification, context: Void?): Void? {
             for (item in node.select.selectItems){
@@ -26,28 +29,36 @@ class Analyzer {
                     if (qualifiedName != null){
                         //val name = qualifiedName.toString()
                         val alias = column.alias.orElse(null)?.value
-                        val md = ColumnMetadata(qualifiedName, alias,null, null)
+                        val md = ParsedColumn(qualifiedName, alias)
                         columns[qualifiedName] = md
+                    }
+                }
+                if(item is AllColumns){
+                    if (item.prefix.isPresent){
+                        allColumnTables.add(item.prefix.get())
+                    } else {
+                        allColumns = true
                     }
                 }
             }
 
             if (node.from.isPresent){
                 val from = node.from.get()
-                tables.clear()
+                var relation : Join
+                relations.clear()
                 if (from is Join){
-                    var relation = from as Join
-                    tables.add(relation.right)
+                    relation = from
+                    relations.add(relation.right)
                     while(relation.left is Join){
                         relation = relation.left as Join
-                        tables.add(relation.right)
+                        relations.add(relation.right)
                     }
-                    tables.add(relation.left)
+                    relations.add(relation.left)
                 } else {
-                    tables.add(from)
+                    relations.add(from)
                 }
             }
-            tables.reverse()
+            relations.reverse()
             return null
         }
 

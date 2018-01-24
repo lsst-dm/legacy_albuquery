@@ -1,4 +1,4 @@
-package org.lsst.dax.querque
+package org.lsst.dax.albuquery
 
 import java.util.concurrent.Executors
 import javax.ws.rs.core.Application
