@@ -55,6 +55,13 @@ public class AstRebuilder<C>
                 processNode(node.getRight(), context));
     }
 
+    /*
+    @Override
+    public Node visitLikeClause(LikeClause node, C context) {
+        return null;
+    }
+    */
+
     @Override
     protected BetweenPredicate visitBetweenPredicate(BetweenPredicate node, C context)
     {
@@ -69,6 +76,11 @@ public class AstRebuilder<C>
     {
         return new CoalesceExpression(/* node.getLocation().get() */
                 processNodeItems(node.getOperands(), context));
+    }
+
+    @Override
+    public Node visitCurrentTime(CurrentTime node, C context) {
+        return node;
     }
 
     @Override
@@ -101,6 +113,11 @@ public class AstRebuilder<C>
                 node.getType(),
                 processNode(node.getLeft(), context),
                 processNode(node.getRight(), context));
+    }
+
+    @Override
+    public Node visitLiteral(Literal node, C context) {
+        return node;
     }
 
     @Override
@@ -148,13 +165,38 @@ public class AstRebuilder<C>
                 processNodeItems(node.getSelectItems(), context));
     }
 
+    /*
+    @Override
+    public Node visitStatement(Statement node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitRelation(Relation node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitQueryBody(QueryBody node, C context) {
+        return null;
+    }
+     */
+
     @Override
     protected SingleColumn visitSingleColumn(SingleColumn node, C context)
     {
-        System.out.println(node);
         return new SingleColumn(/* node.getLocation().get() */
                 processNode(node.getExpression(), context),
                 node.getAlias());
+    }
+
+    @Override
+    protected AllColumns visitAllColumns(AllColumns node, C context)
+    {
+        if(node.getPrefix().isPresent()){
+            return new AllColumns(node.getPrefix().get());
+        }
+        return new AllColumns();
     }
 
     @Override
@@ -274,13 +316,12 @@ public class AstRebuilder<C>
     }
 
     @Override
-    protected SimpleCaseExpression visitSimpleCaseExpression(SimpleCaseExpression node, C context)
-    {
+    protected SimpleCaseExpression visitSimpleCaseExpression(SimpleCaseExpression node, C context) {
 
         Expression operand = processNode(node.getOperand(), context);
         List<WhenClause> whenClauses = processNodeItems(node.getWhenClauses(), context);
         Optional<Expression> defaultValue = Optional.empty();
-        if (node.getDefaultValue().isPresent()){
+        if (node.getDefaultValue().isPresent()) {
             defaultValue = Optional.of(processNode(node.getDefaultValue().get(), context));
         }
 
@@ -462,6 +503,23 @@ public class AstRebuilder<C>
                     node.isDistinct());
         }
     }
+
+    /*
+    @Override
+    public Node visitUnion(Union node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitIntersect(Intersect node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitExcept(Except node, C context) {
+        return null;
+    }
+    */
 
     @Override
     protected Values visitValues(Values node, C context)
@@ -684,4 +742,177 @@ public class AstRebuilder<C>
         return new Lateral(/* node.getLocation().get() */
                 processNode(node.getQuery(), context));
     }
+
+    /*
+    @Override
+    public Node visitFieldReference(FieldReference node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitParameter(Parameter node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitPrepare(Prepare node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitDeallocate(Deallocate node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitExecute(Execute node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitDescribeOutput(DescribeOutput node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitDescribeInput(DescribeInput node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitCreateSchema(CreateSchema node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitDropSchema(DropSchema node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitRenameSchema(RenameSchema node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitDropTable(DropTable node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitRenameTable(RenameTable node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitRenameColumn(RenameColumn node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitDropColumn(DropColumn node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitDropView(DropView node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitResetSession(ResetSession node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitExplainOption(ExplainOption node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowCreate(ShowCreate node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowFunctions(ShowFunctions node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitUse(Use node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowSession(ShowSession node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitGrant(Grant node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitRevoke(Revoke node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowGrants(ShowGrants node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitTransactionMode(TransactionMode node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitIsolationLevel(Isolation node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitTransactionAccessMode(TransactionAccessMode node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitCommit(Commit node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitRollback(Rollback node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowTables(ShowTables node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowSchemas(ShowSchemas node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowCatalogs(ShowCatalogs node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowColumns(ShowColumns node, C context) {
+        return null;
+    }
+
+    @Override
+    public Node visitShowStats(ShowStats node, C context) {
+        return null;
+    }
+
+    */
 }
