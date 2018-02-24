@@ -1,4 +1,6 @@
 package org.lsst.dax.albuquery.dataformat.fits;
 
-public class FitsMapper {
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+public class FitsMapper extends ObjectMapper {
 }
