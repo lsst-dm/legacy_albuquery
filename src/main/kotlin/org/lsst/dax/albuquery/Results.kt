@@ -1,6 +1,12 @@
 package org.lsst.dax.albuquery
 
+import com.facebook.presto.sql.tree.AliasedRelation
 import com.facebook.presto.sql.tree.QualifiedName
+import com.facebook.presto.sql.tree.Relation
+import com.fasterxml.jackson.annotation.JsonIgnore
+import org.lsst.dax.albuquery.dao.MetaservDAO
+import org.lsst.dax.albuquery.model.metaserv.Column
+import org.lsst.dax.albuquery.model.metaserv.Table
 import java.sql.*
 import java.util.NoSuchElementException
 
@@ -10,16 +16,17 @@ data class ParsedColumn(val qualifiedName: QualifiedName,
 
 data class ColumnMetadata(val name: String,
                           val datatype: String?,
-                          val ucd: String?)
-
-data class LookupColumnMetadata(val qualifiedName: QualifiedName,
-                          val alias: String?,
-                          var datatype: String?,
-                          var ucd: String?)
+                          val ucd: String?,
+                          val unit: String?,
+                          @JsonIgnore val jdbcType: JDBCType)
 
 data class JdbcColumnMetadata(val name: String,
+                              val tableName: String,
                               val ordinal: Int,
                               val typeName: String,
+                              val schemaName: String?,
+                              val catalogName: String?,
+                              val nullable: Int,
                               val jdbcType: JDBCType)
 
 fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
@@ -29,7 +36,11 @@ fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
     for (i in 1 .. resultSetMetaData.columnCount) {
         val name = resultSetMetaData.getColumnName(i)
         val columnMetadata = JdbcColumnMetadata(
-                name, ordinal = i, typeName = resultSetMetaData.getColumnTypeName(i),
+                name, tableName = resultSetMetaData.getTableName(i),
+                ordinal = i, typeName = resultSetMetaData.getColumnTypeName(i),
+                schemaName = resultSetMetaData.getSchemaName(i),
+                catalogName = resultSetMetaData.getCatalogName(i),
+                nullable = resultSetMetaData.isNullable(i),
                 jdbcType = JDBCType.valueOf(resultSetMetaData.getColumnType(i))
         )
         rowMetadata[name] = columnMetadata
@@ -108,17 +119,57 @@ fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>) : List<
     return row
 }
 
-class LookupMetadataTask(val extractor: Analyzer.TableAndColumnExtractor) :
+class LookupMetadataTask(val metaservDAO: MetaservDAO,
+                         val extractedRelations: List<Relation>,
+                         val extractedColumns: Map<QualifiedName, ParsedColumn>) :
         Runnable {
-    val columnMetadata: LinkedHashMap<String, LookupColumnMetadata> = linkedMapOf()
+    var columnMetadata: Map<QualifiedName, List<Column>> = mapOf()
+    val tableMetadata: ArrayList<Table> = arrayListOf()
 
     override fun run() {
-        if(extractor.allColumns){
-            //
+        val (schemas, columns) = buildCache()
+        columnMetadata = columns
+        for ((_, tables) in schemas){
+            tableMetadata.addAll(tables)
         }
-        // Do some database things with the relations and columns
+    }
 
-        // Update the columns
+    private fun buildCache() : Pair<
+            Map<String, List<Table>>,
+            Map<QualifiedName, List<Column>>>{
+        val foundSchemas = linkedMapOf<String, List<Table>>()
+        // "schema.table"
+        val foundColumns = hashMapOf<QualifiedName, List<Column>>()
+        for (relation in extractedRelations) {
+            var table : com.facebook.presto.sql.tree.Table? = null
+            if (relation is com.facebook.presto.sql.tree.Table) {
+                // Skip relations that aren't tables
+                table = relation
+            }
+            if (relation is AliasedRelation && relation.relation is com.facebook.presto.sql.tree.Table){
+                table = relation.relation as com.facebook.presto.sql.tree.Table
+            }
+
+            if(table == null){
+                continue
+            }
+
+            val qualifiedTableName = table.name
+            // FIXME: Handle unqualified table names/schema names
+            val databaseName = qualifiedTableName.parts.get(0)
+
+            val database = metaservDAO.findDatabaseByName(databaseName) ?: continue
+
+            val schema = metaservDAO.findDefaultSchemaByDatabaseId(database.id) ?: continue
+
+            val metaservTables = metaservDAO.findTablesBySchemaId(schema.id) ?: continue
+            foundSchemas.put(schema.name, metaservTables)
+            for (metaservTable in metaservTables) {
+                val columns = metaservDAO.findColumnsByTableId(metaservTable.id)
+                foundColumns.put(QualifiedName.of(schema.name, metaservTable.name), columns)
+            }
+        }
+        return Pair(foundSchemas, foundColumns)
     }
 
 }
