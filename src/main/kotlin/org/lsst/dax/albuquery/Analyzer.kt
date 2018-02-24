@@ -1,5 +1,9 @@
 package org.lsst.dax.albuquery
+import com.facebook.presto.sql.parser.ParsingException
 import com.facebook.presto.sql.tree.*
+import org.lsst.dax.albuquery.dao.MetaservDAO
+import org.lsst.dax.albuquery.resources.DBURI
+import java.net.URI
 
 class Analyzer {
 
@@ -62,5 +66,46 @@ class Analyzer {
             return null
         }
 
+    }
+
+    companion object {
+        fun getDatabaseURI(metaservDAO: MetaservDAO, instanceIdentifier: String): String? {
+            val jdbcPrefix = "jdbc:"
+            // FIXME: MySQL specific
+            val mysqlScheme = "mysql"
+            var dbUri : URI? = null
+            if (instanceIdentifier.matches(DBURI)){
+                val givenUri = URI(instanceIdentifier)
+                dbUri = URI(mysqlScheme, null, givenUri.host, givenUri.port,
+                        givenUri.path, null, null)
+            }
+
+            val db = metaservDAO.findDatabaseByName(instanceIdentifier)
+            if(db != null) {
+                // FIXME: Might want to specify path based on default schema
+                dbUri = URI(mysqlScheme, null, db.host, db.port,
+                        null, null, null)
+            }
+            if (dbUri == null){
+                // FIXME: Not really a parsing exception
+                throw ParsingException("Unable to determine database to connect to")
+            }
+            return jdbcPrefix + dbUri
+        }
+
+        fun getFirstTable(relations: List<Relation>) : QualifiedName {
+            var firstTable : QualifiedName? = null
+            for (relation in relations) {
+                if(relation is Table){
+                    firstTable = relation.name
+                    break
+                }
+            }
+            if (firstTable == null){
+                // Not sure if this can happen
+                throw ParsingException("Unable to determine a table")
+            }
+            return firstTable
+        }
     }
 }
