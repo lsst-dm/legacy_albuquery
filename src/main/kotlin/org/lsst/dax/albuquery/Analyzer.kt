@@ -93,12 +93,14 @@ class Analyzer {
             return jdbcPrefix + dbUri
         }
 
-        fun getFirstTable(relations: List<Relation>) : QualifiedName {
+        fun findInstanceIdentifyingTable(relations: List<Relation>) : QualifiedName {
             var firstTable : QualifiedName? = null
             for (relation in relations) {
                 if(relation is Table){
-                    firstTable = relation.name
-                    break
+                    if (relation.name.parts.size == 3){
+                        firstTable = relation.name
+                        break
+                    }
                 }
             }
             if (firstTable == null){

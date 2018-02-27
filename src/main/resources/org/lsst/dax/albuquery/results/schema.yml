@@ -1,0 +1,74 @@
+databaseChangeLog:
+
+    - changeSet:
+        author: albuquery
+        id: TapResult_v0
+        changes:
+            - createTable:
+                tableName: meta$schema
+                columns:
+                - column:
+                    name: schema_name
+                    type: varchar(255)
+                    constraints:
+                        nullable: false
+                - column:
+                    name: description
+                    type: varchar(255)
+                - column:
+                    name: utype
+                    type: varchar(255)
+
+            - createTable:
+                tableName: meta$tables
+                columns:
+                - column:
+                    name: table_name
+                    type: varchar(255)
+                    constraints:
+                        nullable: false
+                - column:
+                    name: schema_name
+                    type: varchar(255)
+                    constraints:
+                        nullable: true
+                        foreignKeyName: fk_meta$table_schema
+                        references: meta$schema(schema_name)
+                - column:
+                    name: table_type
+                    type: varchar(255)
+                - column:
+                    name: description
+                    type: varchar(255)
+                - column:
+                    name: utype
+                    type: varchar(255)
+
+            - createTable:
+                tableName: meta$columns
+                columns:
+                - column:
+                    name: table_name
+                    type: varchar(255)
+                    constraints:
+                        nullable: false
+                        foreignKeyName: fk_meta$columns_table
+                        references: meta$tables(table_name)
+                - column:
+                    name: column_name
+                    type: varchar(255)
+                - column:
+                    name: description
+                    type: varchar(255)
+                - column:
+                    name: unit
+                    type: varchar(255)
+                - column:
+                    name: ucd
+                    type: varchar(255)
+                - column:
+                    name: utype
+                    type: varchar(255)
+                - column:
+                    name: datatype
+                    type: varchar(255)
