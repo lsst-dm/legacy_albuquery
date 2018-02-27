@@ -122,9 +122,8 @@ fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>) : List<
     return row
 }
 
-fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>) : Pair<
-        List<Table>,
-        Map<QualifiedName, List<Column>>>{
+fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>) :
+        Pair<List<Table>,Map<QualifiedName, List<Column>>>{
 
     val foundSchemas = arrayListOf<Table>()
     // "schema.table"
