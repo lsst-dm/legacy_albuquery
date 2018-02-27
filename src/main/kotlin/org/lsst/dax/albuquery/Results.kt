@@ -48,7 +48,7 @@ fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
     return rowMetadata
 }
 
-class RowIterator(val conn: Connection, query: String) : Iterator<List<Any>> {
+class RowStreamIterator(val conn: Connection, query: String, queryId: String) : Iterator<List<Any>> {
     private var row: List<Any> = listOf()
     private var emptyRow = true
     val stmt : Statement = conn.createStatement()
@@ -59,6 +59,7 @@ class RowIterator(val conn: Connection, query: String) : Iterator<List<Any>> {
     init {
         this.rs = stmt.executeQuery(query)
         this.jdbcColumnMetadata = jdbcRowMetadata(rs)
+        // FIXME: createSqliteDatabase(rs, jdbcColumnMetadata)
     }
 
     override fun hasNext(): Boolean {
@@ -73,6 +74,7 @@ class RowIterator(val conn: Connection, query: String) : Iterator<List<Any>> {
                     return false
                 }
                 row = makeRow(rs, jdbcColumnMetadata.values.toList())
+                // FIXME: alsoPersistRow(sqliteDatabase, row)
                 emptyRow = false
                 return true
             }
@@ -104,6 +106,7 @@ class RowIterator(val conn: Connection, query: String) : Iterator<List<Any>> {
         try { rs.close() } catch (ex: SQLException) {}
         try { stmt.close() } catch (ex: SQLException) {}
         try { conn.close() } catch (ex: SQLException) {}
+        // FIXME: Close Sqlite Database
     }
 }
 
@@ -119,59 +122,43 @@ fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>) : List<
     return row
 }
 
-class LookupMetadataTask(val metaservDAO: MetaservDAO,
-                         val extractedRelations: List<Relation>,
-                         val extractedColumns: Map<QualifiedName, ParsedColumn>) :
-        Runnable {
-    var columnMetadata: Map<QualifiedName, List<Column>> = mapOf()
-    val tableMetadata: ArrayList<Table> = arrayListOf()
+fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>) : Pair<
+        List<Table>,
+        Map<QualifiedName, List<Column>>>{
 
-    override fun run() {
-        val (schemas, columns) = buildCache()
-        columnMetadata = columns
-        for ((_, tables) in schemas){
-            tableMetadata.addAll(tables)
+    val foundSchemas = arrayListOf<Table>()
+    // "schema.table"
+    val foundColumns = hashMapOf<QualifiedName, List<Column>>()
+    for (relation in extractedRelations) {
+        var table : com.facebook.presto.sql.tree.Table? = null
+        if (relation is com.facebook.presto.sql.tree.Table) {
+            // Skip relations that aren't tables
+            table = relation
+        }
+        if (relation is AliasedRelation && relation.relation is com.facebook.presto.sql.tree.Table){
+            table = relation.relation as com.facebook.presto.sql.tree.Table
+        }
+
+        if(table == null){
+            continue
+        }
+
+        val qualifiedTableName = table.name
+        // FIXME: Handle unqualified table names/schema names
+        val databaseName = qualifiedTableName.parts.get(0)
+
+        val database = metaservDAO.findDatabaseByName(databaseName) ?: continue
+
+        val schema = metaservDAO.findDefaultSchemaByDatabaseId(database.id) ?: continue
+
+        val metaservTables = metaservDAO.findTablesBySchemaId(schema.id) ?: continue
+        foundSchemas.addAll(metaservTables)
+        for (metaservTable in metaservTables) {
+            val columns = metaservDAO.findColumnsByTableId(metaservTable.id)
+            foundColumns.put(QualifiedName.of(schema.name, metaservTable.name), columns)
         }
     }
-
-    private fun buildCache() : Pair<
-            Map<String, List<Table>>,
-            Map<QualifiedName, List<Column>>>{
-        val foundSchemas = linkedMapOf<String, List<Table>>()
-        // "schema.table"
-        val foundColumns = hashMapOf<QualifiedName, List<Column>>()
-        for (relation in extractedRelations) {
-            var table : com.facebook.presto.sql.tree.Table? = null
-            if (relation is com.facebook.presto.sql.tree.Table) {
-                // Skip relations that aren't tables
-                table = relation
-            }
-            if (relation is AliasedRelation && relation.relation is com.facebook.presto.sql.tree.Table){
-                table = relation.relation as com.facebook.presto.sql.tree.Table
-            }
-
-            if(table == null){
-                continue
-            }
-
-            val qualifiedTableName = table.name
-            // FIXME: Handle unqualified table names/schema names
-            val databaseName = qualifiedTableName.parts.get(0)
-
-            val database = metaservDAO.findDatabaseByName(databaseName) ?: continue
-
-            val schema = metaservDAO.findDefaultSchemaByDatabaseId(database.id) ?: continue
-
-            val metaservTables = metaservDAO.findTablesBySchemaId(schema.id) ?: continue
-            foundSchemas.put(schema.name, metaservTables)
-            for (metaservTable in metaservTables) {
-                val columns = metaservDAO.findColumnsByTableId(metaservTable.id)
-                foundColumns.put(QualifiedName.of(schema.name, metaservTable.name), columns)
-            }
-        }
-        return Pair(foundSchemas, foundColumns)
-    }
-
+    return Pair(foundSchemas, foundColumns)
 }
 
 fun jdbcToLsstType(jdbcType: JDBCType) : String {
