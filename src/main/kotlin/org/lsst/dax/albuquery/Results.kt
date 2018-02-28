@@ -16,27 +16,27 @@ import java.sql.SQLException
 import java.util.NoSuchElementException
 
 data class ParsedColumn(
-        val qualifiedName: QualifiedName,
-        val alias: String?
+    val qualifiedName: QualifiedName,
+    val alias: String?
 )
 
 data class ColumnMetadata(
-        val name: String,
-        val datatype: String?,
-        val ucd: String?,
-        val unit: String?,
-        @JsonIgnore val jdbcType: JDBCType
+    val name: String,
+    val datatype: String?,
+    val ucd: String?,
+    val unit: String?,
+    @JsonIgnore val jdbcType: JDBCType
 )
 
 data class JdbcColumnMetadata(
-        val name: String,
-        val tableName: String,
-        val ordinal: Int,
-        val typeName: String,
-        val schemaName: String?,
-        val catalogName: String?,
-        val nullable: Int,
-        val jdbcType: JDBCType
+    val name: String,
+    val tableName: String,
+    val ordinal: Int,
+    val typeName: String,
+    val schemaName: String?,
+    val catalogName: String?,
+    val nullable: Int,
+    val jdbcType: JDBCType
 )
 
 fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
@@ -46,12 +46,12 @@ fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
     for (i in 1..resultSetMetaData.columnCount) {
         val name = resultSetMetaData.getColumnName(i)
         val columnMetadata = JdbcColumnMetadata(
-                name, tableName = resultSetMetaData.getTableName(i),
-                ordinal = i, typeName = resultSetMetaData.getColumnTypeName(i),
-                schemaName = resultSetMetaData.getSchemaName(i),
-                catalogName = resultSetMetaData.getCatalogName(i),
-                nullable = resultSetMetaData.isNullable(i),
-                jdbcType = JDBCType.valueOf(resultSetMetaData.getColumnType(i))
+            name, tableName = resultSetMetaData.getTableName(i),
+            ordinal = i, typeName = resultSetMetaData.getColumnTypeName(i),
+            schemaName = resultSetMetaData.getSchemaName(i),
+            catalogName = resultSetMetaData.getCatalogName(i),
+            nullable = resultSetMetaData.isNullable(i),
+            jdbcType = JDBCType.valueOf(resultSetMetaData.getColumnType(i))
         )
         rowMetadata[name] = columnMetadata
     }
@@ -141,7 +141,7 @@ fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>): List<A
 }
 
 fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>):
-        Pair<List<Table>, Map<QualifiedName, List<Column>>> {
+    Pair<List<Table>, Map<QualifiedName, List<Column>>> {
 
     val foundSchemas = arrayListOf<Table>()
     // "schema.table"

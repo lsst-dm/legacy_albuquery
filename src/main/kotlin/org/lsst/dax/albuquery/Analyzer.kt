@@ -84,14 +84,14 @@ class Analyzer {
             if (instanceIdentifier.matches(DBURI)) {
                 val givenUri = URI(instanceIdentifier)
                 dbUri = URI(mysqlScheme, null, givenUri.host, givenUri.port,
-                        givenUri.path, null, null)
+                    givenUri.path, null, null)
             }
 
             val db = metaservDAO.findDatabaseByName(instanceIdentifier)
             if (db != null) {
                 // FIXME: Might want to specify path based on default schema
                 dbUri = URI(mysqlScheme, null, db.host, db.port,
-                        null, null, null)
+                    null, null, null)
             }
             if (dbUri == null) {
                 // FIXME: Not really a parsing exception
