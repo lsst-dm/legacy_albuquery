@@ -13,7 +13,6 @@ import liquibase.resource.ResourceAccessor
 
 import org.lsst.dax.albuquery.JdbcColumnMetadata
 
-
 class SqliteResult {
     companion object {
         fun buildChangeLog(jdbcColumnMetadata: List<JdbcColumnMetadata>): DatabaseChangeLog {
@@ -34,9 +33,9 @@ class SqliteResult {
             return changeLog
         }
 
-        fun initializeDatabase(changeLog: DatabaseChangeLog, dbUri: String){
-            val accessor : ResourceAccessor? = FileSystemResourceAccessor()
-            val liquibaseDb = DatabaseFactory.getInstance().openDatabase(dbUri,null, null, null, accessor)
+        fun initializeDatabase(changeLog: DatabaseChangeLog, dbUri: String) {
+            val accessor: ResourceAccessor? = FileSystemResourceAccessor()
+            val liquibaseDb = DatabaseFactory.getInstance().openDatabase(dbUri, null, null, null, accessor)
             val lb = Liquibase(changeLog, accessor, liquibaseDb)
             lb.update(Contexts())
         }

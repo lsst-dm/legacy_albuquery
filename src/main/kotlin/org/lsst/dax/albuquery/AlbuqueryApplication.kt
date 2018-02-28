@@ -4,18 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import io.dropwizard.Application
 import io.dropwizard.jdbi3.JdbiFactory
-import io.dropwizard.setup.Bootstrap
 import io.dropwizard.setup.Environment
 import org.jdbi.v3.core.kotlin.KotlinPlugin
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.resources.AsyncResource
 import java.util.concurrent.Executors
 import javax.ws.rs.ext.ContextResolver
-import javax.xml.bind.JAXBContext
 
 val EXECUTOR = Executors.newCachedThreadPool()
 var CONFIG: AlbuqueryConfiguration? = null
-
 
 class AlbuqueryApplication() : Application<AlbuqueryConfiguration>() {
 
@@ -39,5 +36,4 @@ class AlbuqueryApplication() : Application<AlbuqueryConfiguration>() {
         env.jersey().register(resource)
         env.jersey().register(ContextResolver<ObjectMapper> { ObjectMapper().registerModule(KotlinModule()) })
     }
-
 }

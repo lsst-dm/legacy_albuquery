@@ -5,7 +5,7 @@ import com.facebook.presto.sql.parser.SqlParser
 
 import org.junit.Test
 
-class VisitorTest{
+class VisitorTest {
 
     @Test
     fun firstTest() {
@@ -22,8 +22,4 @@ class VisitorTest{
         stmt = SqlParser().createStatement(sql, ParsingOptions())
         println(rewriter.process(stmt, null))
     }
-
-
-
-
 }
