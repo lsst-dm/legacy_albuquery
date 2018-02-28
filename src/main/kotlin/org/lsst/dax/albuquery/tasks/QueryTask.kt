@@ -4,14 +4,20 @@ import com.facebook.presto.sql.SqlFormatter
 import com.facebook.presto.sql.tree.QualifiedName
 import com.facebook.presto.sql.tree.Query
 import com.facebook.presto.sql.tree.Relation
-import org.lsst.dax.albuquery.*
+import org.lsst.dax.albuquery.ColumnMetadata
+import org.lsst.dax.albuquery.JdbcColumnMetadata
+import org.lsst.dax.albuquery.RowStreamIterator
+
 import org.lsst.dax.albuquery.dao.MetaservDAO
+import org.lsst.dax.albuquery.getConnection
+import org.lsst.dax.albuquery.jdbcToLsstType
+import org.lsst.dax.albuquery.ParsedColumn
+import org.lsst.dax.albuquery.lookupMetadata
 import org.lsst.dax.albuquery.model.metaserv.Column
 import org.lsst.dax.albuquery.resources.AsyncResponse
 import org.lsst.dax.albuquery.resources.ResponseMetadata
 import java.util.Optional
 import java.util.concurrent.Callable
-
 
 /**
  * A Task for generic databases.
@@ -22,12 +28,13 @@ import java.util.concurrent.Callable
  * to disk.
  */
 class QueryTask(
-        val metaservDAO: MetaservDAO,
-        val dbUri: String,
-        val queryId: String,
-        val queryStatement: Query,
-        val extractedRelations: List<Relation>,
-        val extractedColumns: Map<QualifiedName, ParsedColumn>) : Callable<QueryTask> {
+    val metaservDAO: MetaservDAO,
+    val dbUri: String,
+    val queryId: String,
+    val queryStatement: Query,
+    val extractedRelations: List<Relation>,
+    val extractedColumns: Map<QualifiedName, ParsedColumn>
+) : Callable<QueryTask> {
 
     var entity: AsyncResponse? = null
 
@@ -48,15 +55,16 @@ class QueryTask(
         val columnMetadataList = buildMetadata(rowIterator.jdbcColumnMetadata, columnMetadata)
 
         entity = AsyncResponse(
-                metadata = ResponseMetadata(columnMetadataList),
-                results = rowIterator.asSequence().toList() // FIXME: Not Streaming?
+            metadata = ResponseMetadata(columnMetadataList),
+            results = rowIterator.asSequence().toList() // FIXME: Not Streaming?
         )
         return this
     }
 
     private fun buildMetadata(
-            jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>,
-            extractedColumnMetadata: Map<QualifiedName, List<Column>>): ArrayList<ColumnMetadata> {
+        jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>,
+        extractedColumnMetadata: Map<QualifiedName, List<Column>>
+    ): ArrayList<ColumnMetadata> {
         val columnMetadataList: ArrayList<ColumnMetadata> = arrayListOf()
 
         for ((name, md) in jdbcColumnMetadata) {
@@ -65,11 +73,11 @@ class QueryTask(
             val metaservColumns = extractedColumnMetadata.get(qualifiedName)?.associateBy({ it.name }, { it })
             val metaservColumn = metaservColumns?.get(name)
             val columnMetadata =
-                    ColumnMetadata(name,
-                            datatype = metaservColumn?.datatype ?: jdbcToLsstType(md.jdbcType),
-                            ucd = metaservColumn?.ucd,
-                            unit = metaservColumn?.unit,
-                            jdbcType = md.jdbcType)
+                ColumnMetadata(name,
+                    datatype = metaservColumn?.datatype ?: jdbcToLsstType(md.jdbcType),
+                    ucd = metaservColumn?.ucd,
+                    unit = metaservColumn?.unit,
+                    jdbcType = md.jdbcType)
             columnMetadataList.add(columnMetadata)
         }
         return columnMetadataList

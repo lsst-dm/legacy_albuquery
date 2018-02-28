@@ -27,8 +27,8 @@ import javax.ws.rs.Produces
 import javax.ws.rs.core.UriInfo
 
 data class AsyncResponse(
-        val metadata: ResponseMetadata,
-        val results: List<List<Any>>
+    val metadata: ResponseMetadata,
+    val results: List<List<Any>>
 )
 
 data class ResponseMetadata(val columns: List<ColumnMetadata>)
@@ -42,10 +42,6 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
     @Context
     lateinit var uri: UriInfo
     val OUTSTANDING_QUERY_DATABASE = ConcurrentHashMap<String, Future<QueryTask>>()
-
-    init {
-        // Initialize webserver stuff
-    }
 
     @POST
     fun createQuery(query: String): Response {
@@ -74,7 +70,7 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
         val dbUri = Analyzer.getDatabaseURI(metaservDAO, instanceIdentifier)
 
         if (dbUri == null) {
-            throw ParsingException("No database instance identified: ${firstTable}")
+            throw ParsingException("No database instance identified: $firstTable")
         }
 
         // Once we've found the instance identifier, rewrite the query
@@ -85,7 +81,7 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
 
         // FIXME: Switch statement to support different types of tasks (e.g. MySQL, Qserv-specific)
         val queryTask = QueryTask(metaservDAO, dbUri, queryId, queryStatement,
-                extractedRelations, extractedColumns)
+            extractedRelations, extractedColumns)
 
         // FIXME: We're reasonably certain this will execute, execute a history task
         val queryTaskFuture = EXECUTOR.submit(queryTask)
