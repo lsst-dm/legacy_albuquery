@@ -7,33 +7,43 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.model.metaserv.Column
 import org.lsst.dax.albuquery.model.metaserv.Table
-import java.sql.*
+import java.sql.JDBCType
+import java.sql.ResultSet
+import java.sql.Statement
+import java.sql.Connection
+import java.sql.SQLException
+
 import java.util.NoSuchElementException
 
+data class ParsedColumn(
+        val qualifiedName: QualifiedName,
+        val alias: String?
+)
 
-data class ParsedColumn(val qualifiedName: QualifiedName,
-                        val alias: String?)
+data class ColumnMetadata(
+        val name: String,
+        val datatype: String?,
+        val ucd: String?,
+        val unit: String?,
+        @JsonIgnore val jdbcType: JDBCType
+)
 
-data class ColumnMetadata(val name: String,
-                          val datatype: String?,
-                          val ucd: String?,
-                          val unit: String?,
-                          @JsonIgnore val jdbcType: JDBCType)
-
-data class JdbcColumnMetadata(val name: String,
-                              val tableName: String,
-                              val ordinal: Int,
-                              val typeName: String,
-                              val schemaName: String?,
-                              val catalogName: String?,
-                              val nullable: Int,
-                              val jdbcType: JDBCType)
+data class JdbcColumnMetadata(
+        val name: String,
+        val tableName: String,
+        val ordinal: Int,
+        val typeName: String,
+        val schemaName: String?,
+        val catalogName: String?,
+        val nullable: Int,
+        val jdbcType: JDBCType
+)
 
 fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
     val resultSetMetaData = rs.metaData
     val rowMetadata = linkedMapOf<String, JdbcColumnMetadata>()
 
-    for (i in 1 .. resultSetMetaData.columnCount) {
+    for (i in 1..resultSetMetaData.columnCount) {
         val name = resultSetMetaData.getColumnName(i)
         val columnMetadata = JdbcColumnMetadata(
                 name, tableName = resultSetMetaData.getTableName(i),
@@ -51,10 +61,9 @@ fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
 class RowStreamIterator(val conn: Connection, query: String, queryId: String) : Iterator<List<Any>> {
     private var row: List<Any> = listOf()
     private var emptyRow = true
-    val stmt : Statement = conn.createStatement()
-    val rs : ResultSet
+    val stmt: Statement = conn.createStatement()
+    val rs: ResultSet
     val jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>
-
 
     init {
         this.rs = stmt.executeQuery(query)
@@ -69,7 +78,7 @@ class RowStreamIterator(val conn: Connection, query: String, queryId: String) : 
                     cleanup()
                     return false
                 }
-                if(!rs.next()){
+                if (!rs.next()) {
                     cleanup()
                     return false
                 }
@@ -102,43 +111,52 @@ class RowStreamIterator(val conn: Connection, query: String, queryId: String) : 
         return ret
     }
 
-    fun cleanup(){
-        try { rs.close() } catch (ex: SQLException) {}
-        try { stmt.close() } catch (ex: SQLException) {}
-        try { conn.close() } catch (ex: SQLException) {}
-        // FIXME: Close Sqlite Database
+    fun cleanup() {
+        try {
+            rs.close()
+        } catch (ex: SQLException) {
+        }
+        try {
+            stmt.close()
+        } catch (ex: SQLException) {
+        }
+        try {
+            conn.close()
+        } catch (ex: SQLException) {
+        }
+        // FIXME: Write report, close Sqlite Database
     }
 }
 
-fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>) : List<Any> {
+fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>): List<Any> {
     /*
     Note We are just going to make a copy of the row. It's already in memory
      */
-    val row : ArrayList<Any> = arrayListOf()
-    for (column in jdbcColumnMetadata){
+    val row: ArrayList<Any> = arrayListOf()
+    for (column in jdbcColumnMetadata) {
         // TODO: Force type conversion?
         row.add(rs.getObject(column.name))
     }
     return row
 }
 
-fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>) :
-        Pair<List<Table>,Map<QualifiedName, List<Column>>>{
+fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>):
+        Pair<List<Table>, Map<QualifiedName, List<Column>>> {
 
     val foundSchemas = arrayListOf<Table>()
     // "schema.table"
     val foundColumns = hashMapOf<QualifiedName, List<Column>>()
     for (relation in extractedRelations) {
-        var table : com.facebook.presto.sql.tree.Table? = null
+        var table: com.facebook.presto.sql.tree.Table? = null
         if (relation is com.facebook.presto.sql.tree.Table) {
             // Skip relations that aren't tables
             table = relation
         }
-        if (relation is AliasedRelation && relation.relation is com.facebook.presto.sql.tree.Table){
+        if (relation is AliasedRelation && relation.relation is com.facebook.presto.sql.tree.Table) {
             table = relation.relation as com.facebook.presto.sql.tree.Table
         }
 
-        if(table == null){
+        if (table == null) {
             continue
         }
 
@@ -160,8 +178,8 @@ fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>)
     return Pair(foundSchemas, foundColumns)
 }
 
-fun jdbcToLsstType(jdbcType: JDBCType) : String {
-    return when (jdbcType){
+fun jdbcToLsstType(jdbcType: JDBCType): String {
+    return when (jdbcType) {
         JDBCType.INTEGER -> "int"
         JDBCType.SMALLINT -> "int"
         JDBCType.TINYINT -> "int"

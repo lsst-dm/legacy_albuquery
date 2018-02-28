@@ -21,14 +21,17 @@ import java.util.concurrent.Callable
  * @property queryStatement Query statement
  * to disk.
  */
-class QueryTask(val metaservDAO: MetaservDAO, val dbUri: String,
-                val queryId: String,
-                val queryStatement: Query,
-                val extractedRelations: List<Relation>,
-                val extractedColumns: Map<QualifiedName, ParsedColumn>) : Callable<QueryTask> {
-    var entity : AsyncResponse? = null
+class QueryTask(
+        val metaservDAO: MetaservDAO,
+        val dbUri: String,
+        val queryId: String,
+        val queryStatement: Query,
+        val extractedRelations: List<Relation>,
+        val extractedColumns: Map<QualifiedName, ParsedColumn>) : Callable<QueryTask> {
 
-    override fun call() : QueryTask {
+    var entity: AsyncResponse? = null
+
+    override fun call(): QueryTask {
 
         // This might be better off if it's done asynchronously, but we need some of the information
         val (tableMetadata, columnMetadata) = lookupMetadata(metaservDAO, extractedRelations)
@@ -51,13 +54,15 @@ class QueryTask(val metaservDAO: MetaservDAO, val dbUri: String,
         return this
     }
 
-    private fun buildMetadata(jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>,
-                              extractedColumnMetadata: Map<QualifiedName, List<Column>>): ArrayList<ColumnMetadata> {
-        val columnMetadataList : ArrayList<ColumnMetadata> = arrayListOf()
-        for((name, md) in jdbcColumnMetadata){
+    private fun buildMetadata(
+            jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>,
+            extractedColumnMetadata: Map<QualifiedName, List<Column>>): ArrayList<ColumnMetadata> {
+        val columnMetadataList: ArrayList<ColumnMetadata> = arrayListOf()
+
+        for ((name, md) in jdbcColumnMetadata) {
             val schemaName = md.schemaName ?: md.catalogName
             val qualifiedName = QualifiedName.of(schemaName, md.tableName)
-            val metaservColumns = extractedColumnMetadata.get(qualifiedName)?.associateBy({it.name}, {it})
+            val metaservColumns = extractedColumnMetadata.get(qualifiedName)?.associateBy({ it.name }, { it })
             val metaservColumn = metaservColumns?.get(name)
             val columnMetadata =
                     ColumnMetadata(name,

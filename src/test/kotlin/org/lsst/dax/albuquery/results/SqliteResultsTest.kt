@@ -27,5 +27,4 @@ class SqliteResultsTest {
         val changeLog = SqliteResult.buildChangeLog(columns)
         SqliteResult.initializeDatabase(changeLog, sqliteUrl)
     }
-
 }
