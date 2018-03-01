@@ -1,0 +1,17 @@
+sudo: false
+language: java
+services:
+- docker
+cache:
+  directories:
+  - "$HOME/.cache"
+
+script: mvn verify
+
+#deploy:
+#  provider: script
+#  script: "mvn install"
+#  skip_cleanup: true
+#  on:
+#    branch: master
+#    tags: true
