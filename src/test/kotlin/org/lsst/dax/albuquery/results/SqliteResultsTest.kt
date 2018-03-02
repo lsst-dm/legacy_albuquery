@@ -11,13 +11,13 @@ class SqliteResultsTest {
     fun createDatabase() {
         val columns = arrayListOf<JdbcColumnMetadata>()
         columns.add(
-                JdbcColumnMetadata("foo", "result", 1, "integer", null, null, 1, JDBCType.BIGINT)
+            JdbcColumnMetadata("foo", "result", "test", 1, "integer", null, null, 1, JDBCType.BIGINT)
         )
         columns.add(
-                JdbcColumnMetadata("bar", "result", 1, "float", null, null, 1, JDBCType.FLOAT)
+            JdbcColumnMetadata("bar", "result", "test", 2, "float", null, null, 1, JDBCType.FLOAT)
         )
         columns.add(
-                JdbcColumnMetadata("baz", "result", 1, "double", null, null, 1, JDBCType.DOUBLE)
+            JdbcColumnMetadata("baz", "result", "test", 3, "double", null, null, 1, JDBCType.DOUBLE)
         )
 
         val tmpdir = Files.createTempDirectory("sqlitetest")

@@ -60,7 +60,7 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
 
         val tableColumnExtractor = Analyzer.TableAndColumnExtractor()
         queryStatement.accept(tableColumnExtractor, null)
-        val extractedRelations = tableColumnExtractor.relations
+        val extractedRelations = tableColumnExtractor.tables
         val extractedColumns = tableColumnExtractor.columns
 
         // Use the first table found to
@@ -80,8 +80,7 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
         val queryId = UUID.randomUUID().toString()
 
         // FIXME: Switch statement to support different types of tasks (e.g. MySQL, Qserv-specific)
-        val queryTask = QueryTask(metaservDAO, dbUri, queryId, queryStatement,
-            extractedRelations, extractedColumns)
+        val queryTask = QueryTask(metaservDAO, dbUri, queryId, queryStatement, tableColumnExtractor)
 
         // FIXME: We're reasonably certain this will execute, execute a history task
         val queryTaskFuture = EXECUTOR.submit(queryTask)

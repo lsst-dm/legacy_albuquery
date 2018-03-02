@@ -1,21 +1,16 @@
 package org.lsst.dax.albuquery.tasks
 
 import com.facebook.presto.sql.SqlFormatter
-import com.facebook.presto.sql.tree.QualifiedName
 import com.facebook.presto.sql.tree.Query
-import com.facebook.presto.sql.tree.Relation
-import org.lsst.dax.albuquery.ColumnMetadata
-import org.lsst.dax.albuquery.JdbcColumnMetadata
+import org.lsst.dax.albuquery.Analyzer.TableAndColumnExtractor
+import org.lsst.dax.albuquery.QueryMetadataHelper
 import org.lsst.dax.albuquery.RowStreamIterator
-
 import org.lsst.dax.albuquery.dao.MetaservDAO
-import org.lsst.dax.albuquery.getConnection
-import org.lsst.dax.albuquery.jdbcToLsstType
-import org.lsst.dax.albuquery.ParsedColumn
+import org.lsst.dax.albuquery.SERVICE_ACCOUNT_CONNECTIONS
 import org.lsst.dax.albuquery.lookupMetadata
-import org.lsst.dax.albuquery.model.metaserv.Column
 import org.lsst.dax.albuquery.resources.AsyncResponse
 import org.lsst.dax.albuquery.resources.ResponseMetadata
+import java.net.URI
 import java.util.Optional
 import java.util.concurrent.Callable
 
@@ -29,19 +24,17 @@ import java.util.concurrent.Callable
  */
 class QueryTask(
     val metaservDAO: MetaservDAO,
-    val dbUri: String,
+    val dbUri: URI,
     val queryId: String,
     val queryStatement: Query,
-    val extractedRelations: List<Relation>,
-    val extractedColumns: Map<QualifiedName, ParsedColumn>
+    val columnAnalyzer: TableAndColumnExtractor
 ) : Callable<QueryTask> {
 
     var entity: AsyncResponse? = null
 
     override fun call(): QueryTask {
-
         // This might be better off if it's done asynchronously, but we need some of the information
-        val (tableMetadata, columnMetadata) = lookupMetadata(metaservDAO, extractedRelations)
+        val metaservColumns = lookupMetadata(metaservDAO, columnAnalyzer.tables)
 
         // Submit for data processing
         var query = SqlFormatter.formatSql(queryStatement, Optional.empty())
@@ -49,37 +42,16 @@ class QueryTask(
         // FIXME: MySQL specific hack because we can't coax Qserv to ANSI compliance
         query = query.replace("\"", "`")
 
-        val conn = getConnection(dbUri)
+        val conn = SERVICE_ACCOUNT_CONNECTIONS.getConnection(dbUri)
         val rowIterator = RowStreamIterator(conn, query, queryId)
 
-        val columnMetadataList = buildMetadata(rowIterator.jdbcColumnMetadata, columnMetadata)
+        val columnMetadataList = QueryMetadataHelper(columnAnalyzer)
+            .associateMetadata(rowIterator.jdbcColumnMetadata, metaservColumns)
 
         entity = AsyncResponse(
             metadata = ResponseMetadata(columnMetadataList),
             results = rowIterator.asSequence().toList() // FIXME: Not Streaming?
         )
         return this
-    }
-
-    private fun buildMetadata(
-        jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>,
-        extractedColumnMetadata: Map<QualifiedName, List<Column>>
-    ): ArrayList<ColumnMetadata> {
-        val columnMetadataList: ArrayList<ColumnMetadata> = arrayListOf()
-
-        for ((name, md) in jdbcColumnMetadata) {
-            val schemaName = md.schemaName ?: md.catalogName
-            val qualifiedName = QualifiedName.of(schemaName, md.tableName)
-            val metaservColumns = extractedColumnMetadata.get(qualifiedName)?.associateBy({ it.name }, { it })
-            val metaservColumn = metaservColumns?.get(name)
-            val columnMetadata =
-                ColumnMetadata(name,
-                    datatype = metaservColumn?.datatype ?: jdbcToLsstType(md.jdbcType),
-                    ucd = metaservColumn?.ucd,
-                    unit = metaservColumn?.unit,
-                    jdbcType = md.jdbcType)
-            columnMetadataList.add(columnMetadata)
-        }
-        return columnMetadataList
     }
 }

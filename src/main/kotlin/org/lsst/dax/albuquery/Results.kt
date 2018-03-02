@@ -1,8 +1,6 @@
 package org.lsst.dax.albuquery
 
-import com.facebook.presto.sql.tree.AliasedRelation
 import com.facebook.presto.sql.tree.QualifiedName
-import com.facebook.presto.sql.tree.Relation
 import com.fasterxml.jackson.annotation.JsonIgnore
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.model.metaserv.Column
@@ -16,8 +14,17 @@ import java.sql.SQLException
 import java.util.NoSuchElementException
 
 data class ParsedColumn(
+    val identifier: String,
     val qualifiedName: QualifiedName,
-    val alias: String?
+    val alias: String?,
+    val position: Int
+)
+
+data class ParsedTable(
+    val identifier: String,
+    val qualifiedName: QualifiedName,
+    val alias: String?,
+    val position: Int
 )
 
 data class ColumnMetadata(
@@ -25,11 +32,13 @@ data class ColumnMetadata(
     val datatype: String?,
     val ucd: String?,
     val unit: String?,
+    val tableName: String?,
     @JsonIgnore val jdbcType: JDBCType
 )
 
 data class JdbcColumnMetadata(
     val name: String,
+    val label: String?,
     val tableName: String,
     val ordinal: Int,
     val typeName: String,
@@ -46,8 +55,11 @@ fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
     for (i in 1..resultSetMetaData.columnCount) {
         val name = resultSetMetaData.getColumnName(i)
         val columnMetadata = JdbcColumnMetadata(
-            name, tableName = resultSetMetaData.getTableName(i),
-            ordinal = i, typeName = resultSetMetaData.getColumnTypeName(i),
+            name,
+            label = resultSetMetaData.getColumnLabel(i),
+            tableName = resultSetMetaData.getTableName(i),
+            ordinal = i,
+            typeName = resultSetMetaData.getColumnTypeName(i),
             schemaName = resultSetMetaData.getSchemaName(i),
             catalogName = resultSetMetaData.getCatalogName(i),
             nullable = resultSetMetaData.isNullable(i),
@@ -140,27 +152,14 @@ fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>): List<A
     return row
 }
 
-fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>):
-    Pair<List<Table>, Map<QualifiedName, List<Column>>> {
+fun lookupMetadata(metaservDAO: MetaservDAO, extractedTables: List<ParsedTable>):
+    Map<Table, List<Column>> {
 
     val foundSchemas = arrayListOf<Table>()
     // "schema.table"
-    val foundColumns = hashMapOf<QualifiedName, List<Column>>()
-    for (relation in extractedRelations) {
-        var table: com.facebook.presto.sql.tree.Table? = null
-        if (relation is com.facebook.presto.sql.tree.Table) {
-            // Skip relations that aren't tables
-            table = relation
-        }
-        if (relation is AliasedRelation && relation.relation is com.facebook.presto.sql.tree.Table) {
-            table = relation.relation as com.facebook.presto.sql.tree.Table
-        }
-
-        if (table == null) {
-            continue
-        }
-
-        val qualifiedTableName = table.name
+    val foundColumns = linkedMapOf<Table, List<Column>>()
+    for (parsedTable in extractedTables) {
+        val qualifiedTableName = parsedTable.qualifiedName
         // FIXME: Handle unqualified table names/schema names
         val databaseName = qualifiedTableName.parts.get(0)
 
@@ -169,13 +168,19 @@ fun lookupMetadata(metaservDAO: MetaservDAO, extractedRelations: List<Relation>)
         val schema = metaservDAO.findDefaultSchemaByDatabaseId(database.id) ?: continue
 
         val metaservTables = metaservDAO.findTablesBySchemaId(schema.id) ?: continue
+        for (table in metaservTables) {
+            table.schemaName = schema.name
+        }
         foundSchemas.addAll(metaservTables)
         for (metaservTable in metaservTables) {
             val columns = metaservDAO.findColumnsByTableId(metaservTable.id)
-            foundColumns.put(QualifiedName.of(schema.name, metaservTable.name), columns)
+            for (column in columns) {
+                column.tableName = metaservTable.name
+            }
+            foundColumns.put(metaservTable, columns)
         }
     }
-    return Pair(foundSchemas, foundColumns)
+    return foundColumns
 }
 
 fun jdbcToLsstType(jdbcType: JDBCType): String {

@@ -4,14 +4,18 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import io.dropwizard.Configuration
 import io.dropwizard.db.DataSourceFactory
 
+data class Credential(
+    val server: String,
+    val port: Int,
+    val username: String?,
+    val password: String?
+)
+
 class AlbuqueryConfiguration(
     @JsonProperty("dax_metaserv_db")
     val DAX_METASERV_DB: DataSourceFactory,
 
-    @JsonProperty("dax_db_default_user")
-    val DAX_DB_DEFAULT_USER: String,
-
-    @JsonProperty("dax_db_default_password")
-    val DAX_DB_DEFAULT_PASSWORD: String
+    @JsonProperty("dax_password_store")
+    val DAX_PASSWORD_STORE: List<Credential>
 
 ) : Configuration()
