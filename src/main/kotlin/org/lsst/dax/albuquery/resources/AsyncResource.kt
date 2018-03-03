@@ -9,9 +9,11 @@ import org.lsst.dax.albuquery.Analyzer
 import org.lsst.dax.albuquery.ColumnMetadata
 import org.lsst.dax.albuquery.EXECUTOR
 import org.lsst.dax.albuquery.ErrorResponse
+import org.lsst.dax.albuquery.ParsedTable
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.rewrite.TableNameRewriter
 import org.lsst.dax.albuquery.tasks.QueryTask
+import java.net.URI
 import java.util.UUID
 import java.util.logging.Logger
 import javax.ws.rs.core.MediaType.APPLICATION_JSON
@@ -45,43 +47,31 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
 
     @POST
     fun createQuery(query: String): Response {
-        var queryStatement: Query
+        val dbUri: URI
+        val queryStatement: Query
+        val qualifiedTables: List<ParsedTable>
         try {
             val statement = SqlParser().createStatement(query, ParsingOptions())
             if (statement !is Query) {
                 val err = ErrorResponse("Only Select Queries allowed", "NotSelectStatementException", null, null)
                 return Response.status(Response.Status.BAD_REQUEST).entity(err).build()
             }
-            queryStatement = statement
+            val analyzer = Analyzer.TableAndColumnExtractor()
+            statement.accept(analyzer, null)
+            qualifiedTables = analyzer.tables
+            dbUri = Analyzer.getDatabaseURI(metaservDAO, analyzer.tables)
+            // Once we've found the database URI, rewrite the query
+            queryStatement = stripInstanceIdentifiers(statement)
         } catch (ex: ParsingException) {
             val err = ErrorResponse(ex.errorMessage, ex.javaClass.simpleName, null, cause = ex.message)
             return Response.status(Response.Status.BAD_REQUEST).entity(err).build()
         }
 
-        val tableColumnExtractor = Analyzer.TableAndColumnExtractor()
-        queryStatement.accept(tableColumnExtractor, null)
-        val extractedRelations = tableColumnExtractor.relations
-        val extractedColumns = tableColumnExtractor.columns
-
-        // Use the first table found to
-        val firstTable = Analyzer.findInstanceIdentifyingTable(extractedRelations)
-        val instanceIdentifier = firstTable.parts.get(0)
-        // FIXME: If this is too slow, use a Guava LoadingCache
-        val dbUri = Analyzer.getDatabaseURI(metaservDAO, instanceIdentifier)
-
-        if (dbUri == null) {
-            throw ParsingException("No database instance identified: $firstTable")
-        }
-
-        // Once we've found the instance identifier, rewrite the query
-        queryStatement = stripInstanceIdentifiers(queryStatement)
-
         // FIXME: Assert firstTable is fully qualified to a known database
         val queryId = UUID.randomUUID().toString()
 
         // FIXME: Switch statement to support different types of tasks (e.g. MySQL, Qserv-specific)
-        val queryTask = QueryTask(metaservDAO, dbUri, queryId, queryStatement,
-            extractedRelations, extractedColumns)
+        val queryTask = QueryTask(metaservDAO, dbUri, queryId, queryStatement, qualifiedTables)
 
         // FIXME: We're reasonably certain this will execute, execute a history task
         val queryTaskFuture = EXECUTOR.submit(queryTask)

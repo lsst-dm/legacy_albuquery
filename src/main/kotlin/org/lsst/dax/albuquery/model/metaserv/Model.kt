@@ -21,6 +21,7 @@ data class Schema(
 data class Table(
     val id: Int,
     @ColumnName("schema_id") val schemaId: Int,
+    var schemaName: String?,
     val name: String,
     val description: String?
 )
@@ -28,6 +29,7 @@ data class Table(
 data class Column(
     val id: Int,
     @ColumnName("table_id") val table_id: Int,
+    var tableName: String?,
     val name: String,
     val description: String?,
     val ordinal: Int?,
