@@ -44,7 +44,18 @@ class Analyzer {
                             qualifiedName = QualifiedName.of(expression.value)
                         }
                         is DereferenceExpression -> {
-                            qualifiedName = DereferenceExpression.getQualifiedName(expression)
+                            // Workaround because DereferenceExpression.getQualifiedName destroys original case
+                            var base = expression.base
+                            val parts = arrayListOf<String>()
+                            parts.add(expression.field.value)
+                            while (base is DereferenceExpression) {
+                                parts.add(base.field.value)
+                                base = base.base
+                            }
+                            if (base is Identifier) {
+                                parts.add(base.value)
+                            }
+                            qualifiedName = QualifiedName.of(parts.reversed())
                         }
                     }
                     if (qualifiedName != null) {
