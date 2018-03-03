@@ -40,7 +40,8 @@ class QueryMetadataHelper(val analyzer: Analyzer.TableAndColumnExtractor) {
             val (_, metaservColumns) = metaservInfo
             for (metaservColumn in metaservColumns) {
                 if (metaservColumn.name !in defaultColumnMap) {
-                    defaultColumnMap[metaservColumn.name] = metaservColumn
+                    // This is for fallbacks. We want to make sure everything is lowercase in that case
+                    defaultColumnMap[metaservColumn.name.toLowerCase()] = metaservColumn
                 }
             }
         }
@@ -48,10 +49,18 @@ class QueryMetadataHelper(val analyzer: Analyzer.TableAndColumnExtractor) {
         val columnMetadataList: ArrayList<ColumnMetadata> = arrayListOf()
         for ((name, jdbcColumn) in jdbcColumnMetadata) {
             val parsedColumn = columnPositionMapping[jdbcColumn.ordinal]
-            val metaservColumn: Column? = parsedColumnToColumn[parsedColumn]
-                    ?: defaultColumnMap[parsedColumn?.identifier]
-                    ?: defaultColumnMap[jdbcColumn.label]
-                    ?: defaultColumnMap[jdbcColumn.name]
+            var metaservColumn: Column? = parsedColumnToColumn[parsedColumn]
+                    ?: defaultColumnMap[parsedColumn?.identifier?.toLowerCase()]
+
+            if (metaservColumn == null && analyzer.allColumns) {
+                metaservColumn = defaultColumnMap[jdbcColumn.name.toLowerCase()]
+            }
+
+            if (metaservColumn == null && !analyzer.allColumnTables.isEmpty()) {
+                // FIXME: Special logic for SELECT foo.*, bar.* FROM baz ? Not sure...
+                // val table = parsedColumn.qualifiedName.prefix.get()
+                metaservColumn = defaultColumnMap[jdbcColumn.name.toLowerCase()]
+            }
 
             val columnMetadata =
                     ColumnMetadata(name,

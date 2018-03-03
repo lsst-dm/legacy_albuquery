@@ -86,13 +86,13 @@ class QueryMetadataHelperTest {
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
 
-        query = "SELECT a.foo, a.bar FROM test a"
+        query = "SELECT a.foo y, a.bar z FROM test a"
         metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
 
-        query = "SELECT a.foo y, a.bar z FROM test a"
+        query = "SELECT Foo y, bar z FROM test a"
         metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
