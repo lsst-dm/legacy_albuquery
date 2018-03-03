@@ -104,7 +104,11 @@ class Analyzer {
     }
 
     companion object {
-        fun getDatabaseURI(metaservDAO: MetaservDAO, instanceIdentifier: String): URI? {
+        fun getDatabaseURI(metaservDAO: MetaservDAO, extractedTables: List<ParsedTable>): URI {
+            // Use the first table found to
+            val firstInstanceTable = findInstanceIdentifyingTable(extractedTables)
+            val instanceIdentifier = firstInstanceTable.parts.get(0)
+
             // FIXME: MySQL specific
             val mysqlScheme = "mysql"
             var dbUri: URI? = null
@@ -114,6 +118,7 @@ class Analyzer {
                     givenUri.path, null, null)
             }
 
+            // FIXME: If this is too slow, use a Guava LoadingCache
             val db = metaservDAO.findDatabaseByName(instanceIdentifier)
             if (db != null) {
                 val defaultSchema = metaservDAO.findDefaultSchemaByDatabaseId(db.id)
@@ -124,8 +129,7 @@ class Analyzer {
                     .build()
             }
             if (dbUri == null) {
-                // FIXME: Not really a parsing exception
-                throw ParsingException("Unable to determine database to connect to")
+                throw ParsingException("No database instance identified: $firstInstanceTable")
             }
             return dbUri
         }

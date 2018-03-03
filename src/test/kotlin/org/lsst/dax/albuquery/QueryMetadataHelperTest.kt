@@ -9,17 +9,10 @@ import java.sql.JDBCType
 import java.util.LinkedHashMap
 
 class QueryMetadataHelperTest {
+    val metaservTables = arrayListOf<Table>()
+    var metaservColumns: Pair<Table, List<Column>>
 
-    @Test
-    fun buildAndAssociateMetadata() {
-        val jdbcColumnMetadata = linkedMapOf<String, JdbcColumnMetadata>()
-        jdbcColumnMetadata["foo"] = JdbcColumnMetadata("foo", null, "test", 1,
-                "INTEGER", "default", "default", 1, JDBCType.DOUBLE)
-        jdbcColumnMetadata["bar"] = JdbcColumnMetadata("bar", null, "test", 2,
-                "INTEGER", "default", "default", 1, JDBCType.FLOAT)
-
-        val metaservTables = arrayListOf<Table>()
-        val metaservColumns = linkedMapOf<Table, List<Column>>()
+    init {
         metaservTables.add(Table(
                 1,
                 1,
@@ -58,172 +51,108 @@ class QueryMetadataHelperTest {
                         null
                 )
         )
-        metaservColumns.put(metaservTables[0], columnList)
-        println(metaservColumns)
+        metaservColumns = Pair(metaservTables[0], columnList)
+    }
 
+    @Test
+    fun buildAndAssociateMetadata() {
+        var jdbcColumnMetadata = linkedMapOf<String, JdbcColumnMetadata>()
+        jdbcColumnMetadata["foo"] = JdbcColumnMetadata("foo", null, "test", 1,
+                "INTEGER", "default", "default", 1, JDBCType.DOUBLE)
+        jdbcColumnMetadata["bar"] = JdbcColumnMetadata("bar", null, "test", 2,
+                "INTEGER", "default", "default", 1, JDBCType.FLOAT)
+
+        println(metaservColumns)
         var query = "SELECT * FROM test"
-        var stmt = SqlParser().createStatement(query, ParsingOptions())
-        var analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        var helper = QueryMetadataHelper(analyzer)
-        var metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
-        println(metadata)
+        var metadata = getMetadata(query, jdbcColumnMetadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
 
         query = "SELECT foo, bar FROM test"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
         println(metadata)
 
         query = "SELECT foo a, bar b FROM test"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
         println(metadata)
 
         query = "SELECT test.foo a, test.bar b FROM test"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
 
         query = "SELECT a.foo, a.bar FROM test a"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
 
         query = "SELECT a.foo y, a.bar z FROM test a"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
 
         query = "SELECT a.bar z, a.foo y FROM test a"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "jansky")
         assert(metadata[1].unit == "ergs")
 
         query = "SELECT test.* FROM test"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
 
         query = "SELECT a.* FROM test a"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
         assert(metadata[1].unit == "jansky")
 
+        jdbcColumnMetadata = jdbcColumnMetadata.filter { it.key == "foo" } as LinkedHashMap<String, JdbcColumnMetadata>
+
         query = "SELECT foo a FROM test"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata.filter { it.key == "foo" } as LinkedHashMap<String, JdbcColumnMetadata>,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
 
         query = "SELECT foO a FROM test"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata.filter { it.key == "foo" } as LinkedHashMap<String, JdbcColumnMetadata>,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
 
         query = "SELECT foO aA FROM test"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata.filter { it.key == "foo" } as LinkedHashMap<String, JdbcColumnMetadata>,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
 
         query = "SELECT xY.foO aA FROM test xY"
-        stmt = SqlParser().createStatement(query, ParsingOptions())
-        analyzer = Analyzer.TableAndColumnExtractor()
-        analyzer.process(stmt)
-        helper = QueryMetadataHelper(analyzer)
-        metadata = helper.associateMetadata(
-                jdbcColumnMetadata.filter { it.key == "foo" } as LinkedHashMap<String, JdbcColumnMetadata>,
-                metaservColumns
-        )
+        metadata = getMetadata(query, jdbcColumnMetadata)
         println(metadata)
         assert(metadata[0].unit == "ergs")
+    }
+
+    private fun getMetadata(
+        query: String,
+        jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>
+    ): List<ColumnMetadata> {
+        val stmt = SqlParser().createStatement(query, ParsingOptions())
+        val analyzer = Analyzer.TableAndColumnExtractor()
+        analyzer.process(stmt)
+        val helper = QueryMetadataHelper(analyzer)
+        val parsedTableToMetaserv = linkedMapOf<ParsedTable, Pair<Table, List<Column>>>()
+        parsedTableToMetaserv[analyzer.tables[0]] = metaservColumns
+
+        return helper.associateMetadata(
+                jdbcColumnMetadata,
+                parsedTableToMetaserv
+        )
     }
 }

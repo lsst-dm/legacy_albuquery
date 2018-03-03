@@ -9,81 +9,49 @@ class QueryMetadataHelper(val analyzer: Analyzer.TableAndColumnExtractor) {
 
     fun associateMetadata(
         jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>,
-        metaservColumns: Map<Table, List<Column>>
+        possibleTablesAndColumns: Map<ParsedTable, Pair<Table, List<Column>>>
     ): ArrayList<ColumnMetadata> {
 
         val parsedTableMapping = buildTableNameAndAliasMapping()
-        val parsedTableToMetaservColumns = linkedMapOf<QualifiedName, Map<String, Column>>()
 
-        // Build up metaserv column mappings.
-        for ((table, columns) in metaservColumns) {
-            // Only process tables we've found from the parse
-            val parsedTable = parsedTableMapping[QualifiedName.of(table.name)]
-            val columnMap = columns.associateBy({ it.name }, { it })
-            if (parsedTable != null) {
-                parsedTableToMetaservColumns[parsedTable.qualifiedName] = columnMap
-            }
+        val parsedColumnToParsedTable = hashMapOf<ParsedColumn, ParsedTable>()
+        val parsedColumnToColumn = hashMapOf<ParsedColumn, Column>()
+        val parsedTableToColumns = hashMapOf<ParsedTable, Map<String, Column>>()
+        val defaultColumnMap = hashMapOf<String, Column>()
+        for ((parsedTable, metaservInfo) in possibleTablesAndColumns) {
+            val (_, metaservColumns) = metaservInfo
+            parsedTableToColumns[parsedTable] = metaservColumns.associateBy({ it.name }, { it })
         }
 
-        val parsedTableToParsedColumnMap = hashMapOf<ParsedTable, HashMap<String, ParsedColumn>>()
-        for (parsedColumn in analyzer.columns) {
-            if (!parsedColumn.qualifiedName.prefix.isPresent) {
-                continue
-            }
-            val tableName = parsedColumn.qualifiedName.prefix.get()
-            val table = parsedTableMapping[tableName]
-            if (table != null) {
-                val columnMap = parsedTableToParsedColumnMap.getOrPut(table) { hashMapOf() }
-                columnMap[parsedColumn.identifier] = parsedColumn
-                if (parsedColumn.alias != null) {
-                    columnMap[parsedColumn.alias] = parsedColumn
-                }
-            }
-        }
-
-        val defaultMetaservColumnNameMapping = hashMapOf<String, Column>()
-        // parsedTableToMetaservColumns is a LinkedHashMap, so we are iterating left-to-right over the tables
-        for (metaservColumnsMap in parsedTableToMetaservColumns.values) {
-            for (column in metaservColumnsMap.values) {
-                if (column.name !in defaultMetaservColumnNameMapping) {
-                    defaultMetaservColumnNameMapping[column.name] = column
-                }
-            }
-        }
-
-        val columnPositionMapping = analyzer.columns.associateBy({ it.position }, { it })
-        val columnMetadataList: ArrayList<ColumnMetadata> = arrayListOf()
-
-        for ((name, jdbcColumn) in jdbcColumnMetadata) {
-            val parsedColumn = columnPositionMapping[jdbcColumn.ordinal]
-            var metaservColumn: Column? = null
-
-            if (parsedColumn != null) {
-                var parsedTable: ParsedTable? = null
-
-                for ((table, columnMap) in parsedTableToParsedColumnMap) {
-                    if (parsedColumn.identifier in columnMap) {
-                        parsedTable = table
+        for (column in analyzer.columns) {
+            if (column.qualifiedName.prefix.isPresent) {
+                val parsedTable = parsedTableMapping[column.qualifiedName.prefix.get()]
+                if (parsedTable != null) {
+                    parsedColumnToParsedTable[column] = parsedTable
+                    val metaservColumns = parsedTableToColumns[parsedTable]
+                    if (metaservColumns != null && column.identifier in metaservColumns) {
+                        parsedColumnToColumn[column] = metaservColumns[column.identifier]!!
                     }
                 }
+            }
+        }
 
-                // If we found a table, try that
-                if (parsedTable != null) {
-                    val metaservColumnsMap = parsedTableToMetaservColumns[parsedTable.qualifiedName]
-                    metaservColumn = metaservColumnsMap?.get(parsedColumn.identifier)
-                }
-
-                // If it's still null, try the default map with the original identifier
-                if (metaservColumn == null) {
-                    metaservColumn = defaultMetaservColumnNameMapping[parsedColumn.identifier]
+        for (metaservInfo in possibleTablesAndColumns.values) {
+            val (_, metaservColumns) = metaservInfo
+            for (metaservColumn in metaservColumns) {
+                if (metaservColumn.name !in defaultColumnMap) {
+                    defaultColumnMap[metaservColumn.name] = metaservColumn
                 }
             }
-
-            if (metaservColumn == null) {
-                if (name in defaultMetaservColumnNameMapping) {
-                    metaservColumn = defaultMetaservColumnNameMapping[name]
-                }
-            }
+        }
+        val columnPositionMapping = analyzer.columns.associateBy({ it.position }, { it })
+        val columnMetadataList: ArrayList<ColumnMetadata> = arrayListOf()
+        for ((name, jdbcColumn) in jdbcColumnMetadata) {
+            val parsedColumn = columnPositionMapping[jdbcColumn.ordinal]
+            val metaservColumn: Column? = parsedColumnToColumn[parsedColumn]
+                    ?: defaultColumnMap[parsedColumn?.identifier]
+                    ?: defaultColumnMap[jdbcColumn.label]
+                    ?: defaultColumnMap[jdbcColumn.name]
 
             val columnMetadata =
                     ColumnMetadata(name,
@@ -103,11 +71,7 @@ class QueryMetadataHelper(val analyzer: Analyzer.TableAndColumnExtractor) {
             if (table.alias != null) {
                 tableNameMapping[QualifiedName.of(table.alias)] = table
             }
-            val parts = arrayListOf<String>()
-            for (part in table.qualifiedName.originalParts.reversed()) {
-                parts.add(part)
-                tableNameMapping[QualifiedName.of(parts.reversed())] = table
-            }
+            tableNameMapping[table.qualifiedName] = table
         }
         return tableNameMapping
     }

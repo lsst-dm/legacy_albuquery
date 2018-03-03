@@ -3,6 +3,7 @@ package org.lsst.dax.albuquery.tasks
 import com.facebook.presto.sql.SqlFormatter
 import com.facebook.presto.sql.tree.Query
 import org.lsst.dax.albuquery.Analyzer.TableAndColumnExtractor
+import org.lsst.dax.albuquery.ParsedTable
 import org.lsst.dax.albuquery.QueryMetadataHelper
 import org.lsst.dax.albuquery.RowStreamIterator
 import org.lsst.dax.albuquery.dao.MetaservDAO
@@ -27,14 +28,20 @@ class QueryTask(
     val dbUri: URI,
     val queryId: String,
     val queryStatement: Query,
-    val columnAnalyzer: TableAndColumnExtractor
+    val qualifiedTables: List<ParsedTable>
 ) : Callable<QueryTask> {
 
+    val columnAnalyzer: TableAndColumnExtractor
     var entity: AsyncResponse? = null
+
+    init {
+        columnAnalyzer = TableAndColumnExtractor()
+        queryStatement.accept(columnAnalyzer, null)
+    }
 
     override fun call(): QueryTask {
         // This might be better off if it's done asynchronously, but we need some of the information
-        val metaservColumns = lookupMetadata(metaservDAO, columnAnalyzer.tables)
+        val metaservInfo = lookupMetadata(metaservDAO, qualifiedTables)
 
         // Submit for data processing
         var query = SqlFormatter.formatSql(queryStatement, Optional.empty())
@@ -46,7 +53,7 @@ class QueryTask(
         val rowIterator = RowStreamIterator(conn, query, queryId)
 
         val columnMetadataList = QueryMetadataHelper(columnAnalyzer)
-            .associateMetadata(rowIterator.jdbcColumnMetadata, metaservColumns)
+            .associateMetadata(rowIterator.jdbcColumnMetadata, metaservInfo)
 
         entity = AsyncResponse(
             metadata = ResponseMetadata(columnMetadataList),

@@ -152,13 +152,11 @@ fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>): List<A
     return row
 }
 
-fun lookupMetadata(metaservDAO: MetaservDAO, extractedTables: List<ParsedTable>):
-    Map<Table, List<Column>> {
-
-    val foundSchemas = arrayListOf<Table>()
+fun lookupMetadata(metaservDAO: MetaservDAO, qualifiedTables: List<ParsedTable>):
+    Map<ParsedTable, Pair<Table, List<Column>>> {
     // "schema.table"
-    val foundColumns = linkedMapOf<Table, List<Column>>()
-    for (parsedTable in extractedTables) {
+    val foundColumns = linkedMapOf<ParsedTable, Pair<Table, List<Column>>>()
+    for (parsedTable in qualifiedTables) {
         val qualifiedTableName = parsedTable.qualifiedName
         // FIXME: Handle unqualified table names/schema names
         val databaseName = qualifiedTableName.parts.get(0)
@@ -171,16 +169,27 @@ fun lookupMetadata(metaservDAO: MetaservDAO, extractedTables: List<ParsedTable>)
         for (table in metaservTables) {
             table.schemaName = schema.name
         }
-        foundSchemas.addAll(metaservTables)
         for (metaservTable in metaservTables) {
-            val columns = metaservDAO.findColumnsByTableId(metaservTable.id)
-            for (column in columns) {
-                column.tableName = metaservTable.name
+            if (metaservTable.name == parsedTable.identifier) {
+                val columns = metaservDAO.findColumnsByTableId(metaservTable.id)
+                for (column in columns) {
+                    column.tableName = metaservTable.name
+                }
+                foundColumns.put(parsedTable, Pair(metaservTable, columns))
             }
-            foundColumns.put(metaservTable, columns)
         }
     }
     return foundColumns
+}
+
+fun maybeStripName(qualifiedName: QualifiedName): QualifiedName {
+    if (qualifiedName.originalParts.size == 3) {
+        val parts = arrayListOf<String>()
+        parts.add(qualifiedName.originalParts[1])
+        parts.add(qualifiedName.originalParts[2])
+        return QualifiedName.of(parts)
+    }
+    return qualifiedName
 }
 
 fun jdbcToLsstType(jdbcType: JDBCType): String {
