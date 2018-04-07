@@ -6,6 +6,7 @@ import com.facebook.presto.sql.parser.ParsingOptions
 import com.facebook.presto.sql.parser.SqlParser
 import com.facebook.presto.sql.tree.Query
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import org.lsst.dax.albuquery.Analyzer
 import org.lsst.dax.albuquery.CONFIG
@@ -38,7 +39,8 @@ class Async(val metaservDAO: MetaservDAO) {
 
     data class AsyncResponse(
         val metadata: ResponseMetadata,
-        val results: List<List<Any>>
+        // Annotation is Workaround for https://github.com/FasterXML/jackson-module-kotlin/issues/4
+        @JsonSerialize(`as` = java.util.Iterator::class) val results: Iterator<List<Any>>
     )
 
     data class ResponseMetadata(val columns: List<ColumnMetadata>)

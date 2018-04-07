@@ -62,8 +62,16 @@ class QueryTask(
 
         val entity = AsyncResponse(
             metadata = ResponseMetadata(columnMetadataList),
-            results = rowIterator.asSequence().toList()
+            results = rowIterator
         )
+        // Write metadata?
+        // objectMapper.writeValue(Files.newBufferedWriter(resultDir.resolve("metadata.json")), entity.metadata)
+
+        /**
+         * May want to find provider ahead of time or cycle through a list of providers
+         * @see javax.ws.rs.ext.MessageBodyWriter.isWriteable
+         * @see javax.ws.rs.ext.MessageBodyWriter.writeTo
+         */
         objectMapper.writeValue(Files.newBufferedWriter(resultDir.resolve("result")), entity)
         return this
     }
