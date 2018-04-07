@@ -5,7 +5,10 @@ import com.facebook.presto.sql.parser.ParsingException
 import com.facebook.presto.sql.parser.ParsingOptions
 import com.facebook.presto.sql.parser.SqlParser
 import com.facebook.presto.sql.tree.Query
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import org.lsst.dax.albuquery.Analyzer
+import org.lsst.dax.albuquery.CONFIG
 import org.lsst.dax.albuquery.ColumnMetadata
 import org.lsst.dax.albuquery.EXECUTOR
 import org.lsst.dax.albuquery.ErrorResponse
@@ -14,6 +17,7 @@ import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.rewrite.TableNameRewriter
 import org.lsst.dax.albuquery.tasks.QueryTask
 import java.net.URI
+import java.nio.file.Paths
 import java.util.UUID
 import java.util.logging.Logger
 import javax.ws.rs.core.MediaType
@@ -29,17 +33,15 @@ import javax.ws.rs.PathParam
 import javax.ws.rs.Produces
 import javax.ws.rs.core.UriInfo
 
-data class AsyncResponse(
-    val metadata: ResponseMetadata,
-    val results: List<List<Any>>
-)
-
-data class ResponseMetadata(val columns: List<ColumnMetadata>)
-
-val DBURI = Regex("//.*")
-
 @Path("async")
-class AsyncResource(val metaservDAO: MetaservDAO) {
+class Async(val metaservDAO: MetaservDAO) {
+
+    data class AsyncResponse(
+        val metadata: ResponseMetadata,
+        val results: List<List<Any>>
+    )
+
+    data class ResponseMetadata(val columns: List<ColumnMetadata>)
 
     @Context
     lateinit var uri: UriInfo
@@ -48,7 +50,8 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
     @POST
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     fun createQuery(query: String): Response {
-        return createAsyncQuery(metaservDAO, uri, query, true)
+        val objectMapper = ObjectMapper().registerModule(KotlinModule())
+        return createAsyncQuery(metaservDAO, uri, query, objectMapper, true)
     }
 
     @Timed
@@ -59,8 +62,11 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
         val queryTaskFuture = findOutstandingQuery(queryId)
         if (queryTaskFuture != null) {
             // Block until completion
-            val queryTask = queryTaskFuture.get()
-            return Response.ok().entity(queryTask.entity).build()
+            queryTaskFuture.get()
+        }
+        val file = Paths.get(CONFIG?.DAX_BASE_PATH, queryId, "result").toFile()
+        if (file.exists()) {
+            return Response.ok(file, "application/json").build()
         }
         return Response.status(Response.Status.NOT_FOUND).build()
     }
@@ -70,13 +76,14 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
     }
 
     companion object {
-        private val LOGGER = Logger.getLogger(::AsyncResource.name)
+        private val LOGGER = Logger.getLogger(::Async.name)
         val OUTSTANDING_QUERY_DATABASE = ConcurrentHashMap<String, Future<QueryTask>>()
 
         fun createAsyncQuery(
             metaservDAO: MetaservDAO,
             uri: UriInfo,
             query: String,
+            objectMapper: ObjectMapper,
             resultRedirect: Boolean
         ): Response {
             val dbUri: URI
@@ -103,7 +110,7 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
             val queryId = UUID.randomUUID().toString()
 
             // FIXME: Switch statement to support different types of tasks (e.g. MySQL, Qserv-specific)
-            val queryTask = QueryTask(metaservDAO, dbUri, queryId, queryStatement, qualifiedTables)
+            val queryTask = QueryTask(metaservDAO, dbUri, queryId, queryStatement, qualifiedTables, objectMapper)
 
             // FIXME: We're reasonably certain this will execute, execute a history task
             val queryTaskFuture = EXECUTOR.submit(queryTask)
@@ -111,7 +118,7 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
             // FIXME: Use a real database (User, Monolithic?)
             OUTSTANDING_QUERY_DATABASE[queryId] = queryTaskFuture
 
-            val createdUriBuilder = uri.requestUriBuilder.path(queryId)
+            val createdUriBuilder = uri.baseUriBuilder.path(Async::class.java).path(queryId)
             val createdUri = if (resultRedirect) {
                 createdUriBuilder.path("results").path("result").build()
             } else {
@@ -122,8 +129,7 @@ class AsyncResource(val metaservDAO: MetaservDAO) {
 
         private fun stripInstanceIdentifiers(query: Query): Query {
             // Rewrite query to extract database instance information
-            val rewriter = TableNameRewriter()
-            return rewriter.process(query) as Query
+            return TableNameRewriter().process(query) as Query
         }
     }
 }

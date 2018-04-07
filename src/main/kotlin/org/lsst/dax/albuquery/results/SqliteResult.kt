@@ -15,7 +15,7 @@ import org.lsst.dax.albuquery.JdbcColumnMetadata
 
 class SqliteResult {
     companion object {
-        fun buildChangeLog(jdbcColumnMetadata: List<JdbcColumnMetadata>): DatabaseChangeLog {
+        fun buildChangeLog(jdbcColumnMetadata: Collection<JdbcColumnMetadata>): DatabaseChangeLog {
             val createTableChange = CreateTableChange()
             createTableChange.tableName = "result"
             for (column in jdbcColumnMetadata) {

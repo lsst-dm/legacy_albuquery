@@ -8,7 +8,9 @@ import io.dropwizard.setup.Bootstrap
 import io.dropwizard.setup.Environment
 import org.jdbi.v3.core.kotlin.KotlinPlugin
 import org.lsst.dax.albuquery.dao.MetaservDAO
-import org.lsst.dax.albuquery.resources.AsyncResource
+import org.lsst.dax.albuquery.resources.Async
+import org.lsst.dax.albuquery.resources.Sync
+import java.nio.file.Files
 import java.util.concurrent.Executors
 import javax.ws.rs.ext.ContextResolver
 
@@ -33,15 +35,20 @@ class AlbuqueryApplication() : Application<AlbuqueryConfiguration>() {
     override fun run(config: AlbuqueryConfiguration, env: Environment) {
         CONFIG = config
         SERVICE_ACCOUNT_CONNECTIONS = ServiceAccountConnections(config.DAX_PASSWORD_STORE)
-
+        if (CONFIG?.DAX_BASE_PATH == null) {
+            val base_path = Files.createTempDirectory("albuquery")
+            CONFIG?.DAX_BASE_PATH = base_path.toString()
+        }
+        println()
+        println("TEMP DIR AT " + CONFIG?.DAX_BASE_PATH)
         //val healthCheck = TemplateHealthCheck(config.template)
         //env.healthChecks().register("template", healthCheck)
         val factory = JdbiFactory()
         val jdbi = factory.build(env, config.DAX_METASERV_DB, "mysql")
         jdbi.installPlugin(KotlinPlugin())
         val metaservDAO = jdbi.onDemand(MetaservDAO::class.java)
-        val resource = AsyncResource(metaservDAO)
-        env.jersey().register(resource)
+        env.jersey().register(Async(metaservDAO))
+        env.jersey().register(Sync(metaservDAO))
         env.jersey().register(ContextResolver<ObjectMapper> { ObjectMapper().registerModule(KotlinModule()) })
     }
 }

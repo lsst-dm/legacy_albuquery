@@ -16,6 +16,9 @@ class AlbuqueryConfiguration(
     val DAX_METASERV_DB: DataSourceFactory,
 
     @JsonProperty("dax_password_store")
-    val DAX_PASSWORD_STORE: List<Credential>
+    val DAX_PASSWORD_STORE: List<Credential>,
+
+    @JsonProperty("dax_base_path")
+    var DAX_BASE_PATH: String?
 
 ) : Configuration()

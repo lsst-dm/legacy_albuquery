@@ -1,6 +1,8 @@
 package org.lsst.dax.albuquery.resources
 
 import com.codahale.metrics.annotation.Timed
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.KotlinModule
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import javax.ws.rs.Consumes
 import javax.ws.rs.POST
@@ -20,6 +22,7 @@ class Sync(val metaservDAO: MetaservDAO) {
     @POST
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     fun createQuery(query: String): Response {
-        return AsyncResource.createAsyncQuery(metaservDAO, uri, query, true)
+        val om = ObjectMapper().registerModule(KotlinModule())
+        return Async.createAsyncQuery(metaservDAO, uri, query, om, true)
     }
 }

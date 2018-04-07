@@ -14,7 +14,6 @@ import com.facebook.presto.sql.tree.SingleColumn
 import com.facebook.presto.sql.tree.SubqueryExpression
 import com.facebook.presto.sql.tree.Table
 import org.lsst.dax.albuquery.dao.MetaservDAO
-import org.lsst.dax.albuquery.resources.DBURI
 import java.net.URI
 import javax.ws.rs.core.UriBuilder
 
@@ -115,6 +114,8 @@ class Analyzer {
     }
 
     companion object {
+        val DBURI = Regex("//.*")
+
         fun getDatabaseURI(metaservDAO: MetaservDAO, extractedTables: List<ParsedTable>): URI {
             // Use the first table found to
             val firstInstanceTable = findInstanceIdentifyingTable(extractedTables)
