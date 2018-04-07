@@ -50,7 +50,7 @@ class QueryMetadataHelper(val analyzer: Analyzer.TableAndColumnExtractor) {
         for ((name, jdbcColumn) in jdbcColumnMetadata) {
             val parsedColumn = columnPositionMapping[jdbcColumn.ordinal]
             var metaservColumn: Column? = parsedColumnToColumn[parsedColumn]
-                    ?: defaultColumnMap[parsedColumn?.identifier?.toLowerCase()]
+                ?: defaultColumnMap[parsedColumn?.identifier?.toLowerCase()]
 
             if (metaservColumn == null && analyzer.allColumns) {
                 metaservColumn = defaultColumnMap[jdbcColumn.name.toLowerCase()]
@@ -63,12 +63,12 @@ class QueryMetadataHelper(val analyzer: Analyzer.TableAndColumnExtractor) {
             }
 
             val columnMetadata =
-                    ColumnMetadata(name,
-                            datatype = metaservColumn?.datatype ?: jdbcToLsstType(jdbcColumn.jdbcType),
-                            ucd = metaservColumn?.ucd,
-                            unit = metaservColumn?.unit,
-                            tableName = metaservColumn?.tableName ?: jdbcColumn.tableName,
-                            jdbcType = jdbcColumn.jdbcType)
+                ColumnMetadata(name,
+                    datatype = metaservColumn?.datatype ?: jdbcToLsstType(jdbcColumn.jdbcType),
+                    ucd = metaservColumn?.ucd,
+                    unit = metaservColumn?.unit,
+                    tableName = metaservColumn?.tableName ?: jdbcColumn.tableName,
+                    jdbcType = jdbcColumn.jdbcType)
             columnMetadataList.add(columnMetadata)
         }
         return columnMetadataList

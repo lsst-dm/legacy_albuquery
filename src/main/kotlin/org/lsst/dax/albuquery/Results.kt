@@ -5,10 +5,14 @@ import com.fasterxml.jackson.annotation.JsonIgnore
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.model.metaserv.Column
 import org.lsst.dax.albuquery.model.metaserv.Table
+import org.lsst.dax.albuquery.results.SqliteResult
+import java.nio.file.Path
 import java.sql.JDBCType
 import java.sql.ResultSet
 import java.sql.Statement
 import java.sql.Connection
+import java.sql.DriverManager
+import java.sql.PreparedStatement
 import java.sql.SQLException
 
 import java.util.NoSuchElementException
@@ -70,16 +74,30 @@ fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
     return rowMetadata
 }
 
-class RowStreamIterator(val conn: Connection, query: String, queryId: String) : Iterator<List<Any>> {
+class RowStreamIterator(private val conn: Connection, query: String, resultDir: Path) : Iterator<List<Any>> {
     private var row: List<Any> = listOf()
     private var emptyRow = true
     val stmt: Statement = conn.createStatement()
     val rs: ResultSet
     val jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>
+    private val sqliteConnection: Connection
+    private val sqliteSql: String
+    val sqliteStmt: PreparedStatement
 
     init {
         this.rs = stmt.executeQuery(query)
         this.jdbcColumnMetadata = jdbcRowMetadata(rs)
+
+        val resultFilePath = resultDir.resolve("result.sqlite")
+        val sqliteUrl = "jdbc:sqlite:" + resultFilePath
+        val changeLog = SqliteResult.buildChangeLog(jdbcColumnMetadata.values)
+        SqliteResult.initializeDatabase(changeLog, sqliteUrl)
+        sqliteConnection = DriverManager.getConnection(sqliteUrl)
+        val valList = arrayListOf<String>()
+        jdbcColumnMetadata.values.forEach { valList.add("?") }
+        val valString = valList.joinToString(",")
+        sqliteSql = "INSERT INTO result VALUES ($valString)"
+        sqliteStmt = sqliteConnection.prepareStatement(sqliteSql)
         // FIXME: createSqliteDatabase(rs, jdbcColumnMetadata)
     }
 
@@ -95,7 +113,11 @@ class RowStreamIterator(val conn: Connection, query: String, queryId: String) : 
                     return false
                 }
                 row = makeRow(rs, jdbcColumnMetadata.values.toList())
-                // FIXME: alsoPersistRow(sqliteDatabase, row)
+                for ((index, value) in row.withIndex()) {
+                    sqliteStmt.setObject(index + 1, value)
+                }
+                // FIXME: addBatch
+                sqliteStmt.executeUpdate()
                 emptyRow = false
                 return true
             }
@@ -136,6 +158,8 @@ class RowStreamIterator(val conn: Connection, query: String, queryId: String) : 
             conn.close()
         } catch (ex: SQLException) {
         }
+        sqliteStmt.close()
+        sqliteConnection.close()
         // FIXME: Write report, close Sqlite Database
     }
 }
