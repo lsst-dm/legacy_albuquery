@@ -17,21 +17,23 @@ import org.lsst.dax.albuquery.ParsedTable
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.rewrite.TableNameRewriter
 import org.lsst.dax.albuquery.tasks.QueryTask
+import org.slf4j.LoggerFactory
 import java.net.URI
 import java.nio.file.Paths
 import java.util.UUID
-import java.util.logging.Logger
 import javax.ws.rs.core.MediaType
 import javax.ws.rs.core.Context
 import javax.ws.rs.core.Response
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Future
 import javax.ws.rs.Consumes
+import javax.ws.rs.FormParam
 import javax.ws.rs.GET
 import javax.ws.rs.Path
 import javax.ws.rs.POST
 import javax.ws.rs.PathParam
 import javax.ws.rs.Produces
+import javax.ws.rs.QueryParam
 import javax.ws.rs.core.UriInfo
 
 @Path("async")
@@ -51,7 +53,8 @@ class Async(val metaservDAO: MetaservDAO) {
     @Timed
     @POST
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    fun createQuery(query: String): Response {
+    fun createQuery(@QueryParam("query") @FormParam("query") query: String): Response {
+        LOGGER.info("Recieved query [$query]")
         val objectMapper = ObjectMapper().registerModule(KotlinModule())
         return createAsyncQuery(metaservDAO, uri, query, objectMapper, true)
     }
@@ -78,7 +81,7 @@ class Async(val metaservDAO: MetaservDAO) {
     }
 
     companion object {
-        private val LOGGER = Logger.getLogger(::Async.name)
+        private val LOGGER = LoggerFactory.getLogger(Async::class.java)
         val OUTSTANDING_QUERY_DATABASE = ConcurrentHashMap<String, Future<QueryTask>>()
 
         fun createAsyncQuery(
