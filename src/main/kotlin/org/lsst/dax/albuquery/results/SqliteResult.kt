@@ -34,12 +34,12 @@ class SqliteResult {
             var schemaResource = pkgPath + "/" + schemaFileName
             val parser = YamlChangeLogParser()
 
-            var changeLog : DatabaseChangeLog
+            var changeLog: DatabaseChangeLog
             try {
                 changeLog = parser.parse(schemaResource, changeLogParameters, accessor)
             } catch (ex: ChangeLogParseException) {
                 // This is for the unit tests. schema.yml is addressed (properly) as a resource
-                schemaResource =  ::SqliteResult.javaClass.getResource(schemaFileName).file
+                schemaResource = ::SqliteResult.javaClass.getResource(schemaFileName).file
                 changeLog = parser.parse(schemaResource, changeLogParameters, accessor)
             }
             changeLog.changeSets[0].addChange(createTableChange)
