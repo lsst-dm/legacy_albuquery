@@ -23,8 +23,8 @@ class Sync(val metaservDAO: MetaservDAO) {
 
     @Timed
     @POST
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    fun createQuery(@QueryParam("query") @FormParam("query") query: String): Response {
+    fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
+        val query = queryParam ?: postBody
         LOGGER.info("Recieved query [$query]")
         val om = ObjectMapper().registerModule(KotlinModule())
         return Async.createAsyncQuery(metaservDAO, uri, query, om, true)
