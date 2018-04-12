@@ -7,7 +7,10 @@ import liquibase.change.core.CreateTableChange
 import liquibase.changelog.ChangeLogParameters
 import liquibase.changelog.DatabaseChangeLog
 import liquibase.database.DatabaseFactory
+import liquibase.exception.ChangeLogParseException
 import liquibase.parser.core.yaml.YamlChangeLogParser
+import liquibase.resource.ClassLoaderResourceAccessor
+import liquibase.resource.CompositeResourceAccessor
 import liquibase.resource.FileSystemResourceAccessor
 import liquibase.resource.ResourceAccessor
 
@@ -25,10 +28,20 @@ class SqliteResult {
                 createTableChange.addColumn(columnConfig)
             }
             val changeLogParameters = ChangeLogParameters()
-            val schemaResource = ::SqliteResult.javaClass.getResource("schema.yml")
-            val resourceAccessor: ResourceAccessor = FileSystemResourceAccessor()
+            val accessor = CompositeResourceAccessor(ClassLoaderResourceAccessor(), FileSystemResourceAccessor())
+            val pkgPath = ::SqliteResult.javaClass.`package`.name.replace(".", "/")
+            val schemaFileName = "schema.yml"
+            var schemaResource = pkgPath + "/" + schemaFileName
             val parser = YamlChangeLogParser()
-            val changeLog = parser.parse(schemaResource.file, changeLogParameters, resourceAccessor)
+
+            var changeLog : DatabaseChangeLog
+            try {
+                changeLog = parser.parse(schemaResource, changeLogParameters, accessor)
+            } catch (ex: ChangeLogParseException) {
+                // This is for the unit tests. schema.yml is addressed (properly) as a resource
+                schemaResource =  ::SqliteResult.javaClass.getResource(schemaFileName).file
+                changeLog = parser.parse(schemaResource, changeLogParameters, accessor)
+            }
             changeLog.changeSets[0].addChange(createTableChange)
             return changeLog
         }
