@@ -17,6 +17,20 @@ import java.sql.SQLException
 
 import java.util.NoSuchElementException
 
+/*
+* Default fetch size from the database.
+* We set this to 50k.
+*
+* The assumptions are:
+* (1) Rows will be 1kB or less
+* (2) There will be 4 serialized bytes also in memory for every fetched byte
+* (3) This will provide an upper limit of ~250MB/query in memory at any given time
+* (4) Assuming 4GB/core, this will allow us to process ~8 queries per core without
+* running out of memory.
+*
+* */
+val RS_FETCH_SIZE = 50_000
+
 data class ParsedColumn(
     val identifier: String,
     val qualifiedName: QualifiedName,
@@ -86,6 +100,7 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
 
     init {
         this.rs = stmt.executeQuery(query)
+        this.rs.fetchSize = RS_FETCH_SIZE
         this.jdbcColumnMetadata = jdbcRowMetadata(rs)
 
         val resultFilePath = resultDir.resolve("result.sqlite")
@@ -204,16 +219,6 @@ fun lookupMetadata(metaservDAO: MetaservDAO, qualifiedTables: List<ParsedTable>)
         }
     }
     return foundColumns
-}
-
-fun maybeStripName(qualifiedName: QualifiedName): QualifiedName {
-    if (qualifiedName.originalParts.size == 3) {
-        val parts = arrayListOf<String>()
-        parts.add(qualifiedName.originalParts[1])
-        parts.add(qualifiedName.originalParts[2])
-        return QualifiedName.of(parts)
-    }
-    return qualifiedName
 }
 
 fun jdbcToLsstType(jdbcType: JDBCType): String {
