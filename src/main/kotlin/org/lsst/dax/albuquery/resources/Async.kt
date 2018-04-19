@@ -99,7 +99,9 @@ class Async(val metaservDAO: MetaservDAO) {
             val queryStatement: Query
             val qualifiedTables: List<ParsedTable>
             try {
-                val statement = SqlParser().createStatement(query, ParsingOptions())
+                val statement = SqlParser().createStatement(query,
+                    ParsingOptions(ParsingOptions.DecimalLiteralTreatment.AS_DOUBLE)
+                )
                 if (statement !is Query) {
                     val err = ErrorResponse("Only Select Queries allowed", "NotSelectStatementException", null, null)
                     return Response.status(Response.Status.BAD_REQUEST).entity(err).build()
