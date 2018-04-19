@@ -13,7 +13,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <kotlin.version>1.2.31</kotlin.version>
-        <dropwizard.version>1.3.0</dropwizard.version>
+        <dropwizard.version>1.3.1</dropwizard.version>
         <mainClass>org.lsst.dax.albuquery.AlbuqueryApplication</mainClass>
     </properties>
 
