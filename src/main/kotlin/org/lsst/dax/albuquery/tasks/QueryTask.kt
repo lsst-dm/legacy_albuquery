@@ -5,6 +5,7 @@ import com.facebook.presto.sql.tree.Query
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.lsst.dax.albuquery.Analyzer.TableAndColumnExtractor
 import org.lsst.dax.albuquery.CONFIG
+import org.lsst.dax.albuquery.ErrorResponse
 import org.lsst.dax.albuquery.ParsedTable
 import org.lsst.dax.albuquery.QueryMetadataHelper
 import org.lsst.dax.albuquery.RowStreamIterator
@@ -16,6 +17,7 @@ import org.lsst.dax.albuquery.resources.Async.ResponseMetadata
 import java.net.URI
 import java.nio.file.Files
 import java.nio.file.Paths
+import java.sql.SQLException
 import java.util.Optional
 import java.util.concurrent.Callable
 
@@ -54,8 +56,15 @@ class QueryTask(
         // FIXME: MySQL specific hack because we can't coax Qserv to ANSI compliance
         query = query.replace("\"", "`")
 
-        val conn = SERVICE_ACCOUNT_CONNECTIONS.getConnection(dbUri)
-        val rowIterator = RowStreamIterator(conn, query, resultDir)
+        val rowIterator: RowStreamIterator
+        try {
+            val conn = SERVICE_ACCOUNT_CONNECTIONS.getConnection(dbUri)
+            rowIterator = RowStreamIterator(conn, query, resultDir)
+        } catch (ex: SQLException) {
+            val error = ErrorResponse(ex.message, "SQLException", null, null)
+            objectMapper.writeValue(Files.newBufferedWriter(resultDir.resolve("error")), error)
+            return this
+        }
 
         val columnMetadataList = QueryMetadataHelper(columnAnalyzer)
             .associateMetadata(rowIterator.jdbcColumnMetadata, metaservInfo)

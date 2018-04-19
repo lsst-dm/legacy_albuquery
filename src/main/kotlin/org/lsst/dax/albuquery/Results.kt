@@ -1,5 +1,6 @@
 package org.lsst.dax.albuquery
 
+import com.codahale.metrics.annotation.Timed
 import com.facebook.presto.sql.tree.QualifiedName
 import com.fasterxml.jackson.annotation.JsonIgnore
 import org.lsst.dax.albuquery.dao.MetaservDAO
@@ -88,12 +89,14 @@ fun jdbcRowMetadata(rs: ResultSet): LinkedHashMap<String, JdbcColumnMetadata> {
     return rowMetadata
 }
 
-class RowStreamIterator(private val conn: Connection, query: String, resultDir: Path) : Iterator<List<Any>> {
-    private var row: List<Any> = listOf()
+@Timed
+class RowStreamIterator(private val conn: Connection, query: String, resultDir: Path) : Iterator<List<Any?>> {
+    private var row: List<Any?> = listOf()
     private var emptyRow = true
     val stmt: Statement = conn.createStatement()
     val rs: ResultSet
     val jdbcColumnMetadata: LinkedHashMap<String, JdbcColumnMetadata>
+    val jdbcColumnMetadataList: List<JdbcColumnMetadata>
     private val sqliteConnection: Connection
     private val sqliteSql: String
     val sqliteStmt: PreparedStatement
@@ -102,7 +105,7 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
         this.rs = stmt.executeQuery(query)
         this.rs.fetchSize = RS_FETCH_SIZE
         this.jdbcColumnMetadata = jdbcRowMetadata(rs)
-
+        this.jdbcColumnMetadataList = jdbcColumnMetadata.values.toList()
         val resultFilePath = resultDir.resolve("result.sqlite")
         val sqliteUrl = "jdbc:sqlite:" + resultFilePath
         val changeLog = SqliteResult.buildChangeLog(jdbcColumnMetadata.values)
@@ -127,8 +130,11 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
                     cleanup()
                     return false
                 }
-                row = makeRow(rs, jdbcColumnMetadata.values.toList())
+                row = makeRow(rs, jdbcColumnMetadataList)
                 for ((index, value) in row.withIndex()) {
+                    if (value == null) {
+                        sqliteStmt.setNull(index + 1, rs.metaData.getColumnType(index + 1))
+                    }
                     sqliteStmt.setObject(index + 1, value)
                 }
                 // FIXME: addBatch
@@ -151,7 +157,7 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
         }
     }
 
-    override fun next(): List<Any> {
+    override fun next(): List<Any?> {
         if (!hasNext()) {
             throw NoSuchElementException()
         }
@@ -179,11 +185,11 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
     }
 }
 
-fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>): List<Any> {
+fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>): List<Any?> {
     /*
     Note We are just going to make a copy of the row. It's already in memory
      */
-    val row: ArrayList<Any> = arrayListOf()
+    val row: ArrayList<Any?> = arrayListOf()
     for (column in jdbcColumnMetadata) {
         // TODO: Force type conversion?
         row.add(rs.getObject(column.name))
@@ -191,6 +197,7 @@ fun makeRow(rs: ResultSet, jdbcColumnMetadata: List<JdbcColumnMetadata>): List<A
     return row
 }
 
+@Timed
 fun lookupMetadata(metaservDAO: MetaservDAO, qualifiedTables: List<ParsedTable>):
     Map<ParsedTable, Pair<Table, List<Column>>> {
     // "schema.table"

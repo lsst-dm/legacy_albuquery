@@ -41,7 +41,7 @@ class Async(val metaservDAO: MetaservDAO) {
     data class AsyncResponse(
         val metadata: ResponseMetadata,
         // Annotation is Workaround for https://github.com/FasterXML/jackson-module-kotlin/issues/4
-        @JsonSerialize(`as` = java.util.Iterator::class) val results: Iterator<List<Any>>
+        @JsonSerialize(`as` = java.util.Iterator::class) val results: Iterator<List<Any?>>
     )
 
     data class ResponseMetadata(val columns: List<ColumnMetadata>)
@@ -49,7 +49,6 @@ class Async(val metaservDAO: MetaservDAO) {
     @Context
     lateinit var uri: UriInfo
 
-    @Timed
     @POST
     fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
         val query = queryParam ?: postBody
@@ -68,9 +67,14 @@ class Async(val metaservDAO: MetaservDAO) {
             // Block until completion
             queryTaskFuture.get()
         }
-        val file = Paths.get(CONFIG?.DAX_BASE_PATH, queryId, "result").toFile()
-        if (file.exists()) {
-            return Response.ok(file, "application/json").build()
+        val queryDir = Paths.get(CONFIG?.DAX_BASE_PATH, queryId)
+        val resultFile = queryDir.resolve("result").toFile()
+        if (resultFile.exists()) {
+            return Response.ok(resultFile, "application/json").build()
+        }
+        val errorFile = queryDir.resolve("error").toFile()
+        if (errorFile.exists()) {
+            return Response.status(Response.Status.BAD_REQUEST).entity(errorFile).build()
         }
         return Response.status(Response.Status.NOT_FOUND).build()
     }
@@ -83,6 +87,7 @@ class Async(val metaservDAO: MetaservDAO) {
         private val LOGGER = LoggerFactory.getLogger(Async::class.java)
         val OUTSTANDING_QUERY_DATABASE = ConcurrentHashMap<String, Future<QueryTask>>()
 
+        @Timed
         fun createAsyncQuery(
             metaservDAO: MetaservDAO,
             uri: UriInfo,
