@@ -77,6 +77,9 @@ class QueryTask(
 
         // FIXME: MySQL specific hack because we can't coax Qserv to ANSI compliance
         query = query.replace("\"", "`")
+        // FIXME: hack due to qserv's current parser's limitation on handling top-level groupings
+        var regex = """WHERE \(`qserv_(.+)\)$""".toRegex()
+        query = query.replace(regex, "WHERE `qserv_$1")
 
         val rowIterator: RowStreamIterator
         try {
