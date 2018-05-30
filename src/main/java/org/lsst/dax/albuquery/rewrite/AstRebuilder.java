@@ -478,6 +478,11 @@ public class AstRebuilder<C>
     }
 
     @Override
+    protected Table visitTable(Table node, C context) {
+        return new Table(node.getName());
+    }
+
+    @Override
     protected QuerySpecification visitQuerySpecification(QuerySpecification node, C context)
     {
         Select select = processNode(node.getSelect(), context);

@@ -28,7 +28,7 @@ import com.facebook.presto.sql.tree.Table
 
 class TableNameRewriter : AstRebuilder<Void?>() {
 
-    override fun visitTable(node: Table, context: Void?): Node? {
+    override fun visitTable(node: Table, context: Void?): Table? {
         val name = node.name
         if (name.originalParts.size == 3) {
             val strippedName = name.originalParts.subList(1, name.originalParts.size)
