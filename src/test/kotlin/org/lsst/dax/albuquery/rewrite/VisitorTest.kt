@@ -22,15 +22,20 @@
 
 package org.lsst.dax.albuquery.rewrite
 
+import com.facebook.presto.sql.SqlFormatter
 import com.facebook.presto.sql.parser.ParsingOptions
 import com.facebook.presto.sql.parser.SqlParser
+import com.facebook.presto.sql.tree.Node
 
 import org.junit.Test
+import java.util.LinkedList
+import java.util.Optional
+import java.util.Stack
 
 class VisitorTest {
 
     @Test
-    fun firstTest() {
+    fun testTableNameRewriter() {
         println("Testing...")
         var sql = "SELECT a, \"B\" from \"//lsst:4040\".\"Sch\".Tab"
         var stmt = SqlParser().createStatement(sql, ParsingOptions())
@@ -44,4 +49,33 @@ class VisitorTest {
         stmt = SqlParser().createStatement(sql, ParsingOptions())
         println(rewriter.process(stmt, null))
     }
+
+    @Test
+    fun testSciSqlRewriter() {
+        val parsingOptions = ParsingOptions()
+        //var sql = "SELECT * from foo WHERE CONTAINS(POINT(1,2), CIRCLE(1,2,3))"
+        val rewriter = AdqlSciSqlRewriter(true)
+        var sql = "SELECT * from Object o WHERE 1=CONTAINS(POINT(o.ra, o.decl), CIRCLE(1,2,3))"
+        var stmt = SqlParser().createStatement(sql, parsingOptions)
+
+        val stack = LinkedList<Node>()
+        println(sql)
+        println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
+
+        sql = "SELECT * from Object o WHERE CONTAINS(POINT(o.ra, o.decl), BOX(20,25,10,8))"
+        stmt = SqlParser().createStatement(sql, parsingOptions)
+        println(sql)
+        println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
+
+        sql = "SELECT * from Object o WHERE 1=CONTAINS(POINT(o.ra, o.decl), BOX(20,25,10,8))"
+        stmt = SqlParser().createStatement(sql, parsingOptions)
+        println(sql)
+        println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
+
+        sql = "SELECT * from Object o WHERE 1=CONTAINS(POINT(o.ra, o.decl), POLYGON(20,25,10,8,0,0))"
+        stmt = SqlParser().createStatement(sql, parsingOptions)
+        println(sql)
+        println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
+    }
+
 }
