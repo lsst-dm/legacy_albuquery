@@ -122,6 +122,7 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
     private val sqliteConnection: Connection
     private val sqliteSql: String
     val sqliteStmt: PreparedStatement
+    var rowCount = 0
 
     init {
         this.rs = stmt.executeQuery(query)
@@ -133,6 +134,7 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
         val changeLog = SqliteResult.buildChangeLog(jdbcColumnMetadata.values)
         SqliteResult.initializeDatabase(changeLog, sqliteUrl)
         sqliteConnection = DriverManager.getConnection(sqliteUrl)
+        sqliteConnection.autoCommit = false
         val valList = arrayListOf<String>()
         jdbcColumnMetadata.values.forEach { valList.add("?") }
         val valString = valList.joinToString(",")
@@ -153,14 +155,17 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
                     return false
                 }
                 row = makeRow(rs, jdbcColumnMetadataList)
+                rowCount++
                 for ((index, value) in row.withIndex()) {
                     if (value == null) {
                         sqliteStmt.setNull(index + 1, rs.metaData.getColumnType(index + 1))
                     }
                     sqliteStmt.setObject(index + 1, value)
                 }
-                // FIXME: addBatch
-                sqliteStmt.executeUpdate()
+                sqliteStmt.addBatch()
+                if (rowCount % RS_FETCH_SIZE == 0) {
+                    sqliteStmt.executeBatch()
+                }
                 emptyRow = false
                 return true
             }
@@ -201,6 +206,8 @@ class RowStreamIterator(private val conn: Connection, query: String, resultDir: 
             conn.close()
         } catch (ex: SQLException) {
         }
+        sqliteStmt.executeBatch()
+        sqliteConnection.commit()
         sqliteStmt.close()
         sqliteConnection.close()
         // FIXME: Write report, close Sqlite Database
