@@ -34,10 +34,11 @@ class JwtBearerTokenFilter(
 
     init {
         val algorithm = Algorithm.RSA256(publicKey)
-        verifier = JWT.require(algorithm)
-            .withIssuer(issuer)
-            .withAudience(audience)
-            .build()
+        val builder = JWT.require(algorithm).withIssuer(issuer)
+        if (audience != null) {
+            builder.withAudience(audience)
+        }
+        verifier = builder.build()
     }
 
     override fun filter(requestContext: ContainerRequestContext) {
