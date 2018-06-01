@@ -44,6 +44,6 @@ class AlbuqueryConfiguration(
     var DAX_BASE_PATH: String?,
 
     @JsonProperty("dax_jwt_auth")
-    val JWT_AUTH: Boolean = false
+    val JWT_AUTH: HashMap<String, Any> = hashMapOf()
 
 ) : Configuration()

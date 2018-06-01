@@ -23,36 +23,36 @@ import javax.ws.rs.core.SecurityContext
 
 @Provider
 @Priority(Priorities.AUTHENTICATION)
-class JwtBearerTokenFilter : ContainerRequestFilter {
+class JwtBearerTokenFilter(
+    publicKey: RSAPublicKey,
+    issuer: String? = null,
+    audience: String? = null
+) : ContainerRequestFilter {
 
     val AUTHORIZATION_HEADER = "Authorization"
-    val VERIFIER: JWTVerifier
+    val verifier: JWTVerifier
 
     init {
-        val issuer = getDemoIssuer()
-        val publicKey = getDemoPublicKey()
         val algorithm = Algorithm.RSA256(publicKey)
-        VERIFIER = JWT.require(algorithm)
+        verifier = JWT.require(algorithm)
             .withIssuer(issuer)
+            .withAudience(audience)
             .build()
     }
 
     override fun filter(requestContext: ContainerRequestContext) {
         val authHeader = requestContext.getHeaderString(AUTHORIZATION_HEADER)
-        val token = authHeader.split(" ")[1]
-        var authenticated = false
+        if (authHeader.indexOf("Bearer") != 0) {
+            throw WebApplicationException("No Bearer token found or header malformed", Response.Status.UNAUTHORIZED)
+        }
+        val token = authHeader.substring("Bearer".length).trim()
         try {
-            val jwt = VERIFIER.verify(token)
+            val jwt = verifier.verify(token)
             requestContext.securityContext = JwtSecurityContext(jwt, requestContext.securityContext)
-            authenticated = true
         } catch (exception: JWTVerificationException) {
             LOGGER.info("Error in authentication")
             LOGGER.info(exception.toString())
             throw WebApplicationException(exception.message, Response.Status.UNAUTHORIZED)
-        }
-
-        if (!authenticated) {
-            throw WebApplicationException(Response.Status.UNAUTHORIZED)
         }
     }
 
@@ -87,22 +87,12 @@ class JwtBearerTokenFilter : ContainerRequestFilter {
     companion object {
         private val LOGGER = LoggerFactory.getLogger(JwtBearerTokenFilter::class.java)
 
-        // FIXME: These should be dynamic via JWKS or static
-        private fun getDemoPublicKey(): RSAPublicKey {
-            val keyE = "AQAB"
-            val keyN = "uGDGTLXnqh3mfopjys6sFUBvFl3F4Qt6NEYphq_u_aBhtN1X9NEyb78uB_I1KjciJNGLIQU0ECsJiFx6qV1hR9xE1" +
-                "dPyrS3bU92AVtnBrvzUtTU-aUZAmZQiuAC_rC0-z_TOQr6qJkkUgZtxR9n9op55ZBpRfZD5dzhkW4Dm146vfTKt0D4cIMoMN" +
-                "JS5xQx9nibeB4E8hryZDW_fPeD0XZDcpByNyP0jFDYkxdUtQFvyRpz4WMZ4ejUfvW3gf4LRAfGZJtMnsZ7ZW4RfoQbhiXKMf" +
-                "WeBEjQDiXh0r-KuZLykxhYJtpf7fTnPna753IzMgRMmW3F69iQn2LQN3LoSMw=="
+        fun getKey(n: String, e: String): RSAPublicKey {
             val kf = KeyFactory.getInstance("RSA")
-            val modulus = BigInteger(1, Base64.decodeBase64(keyN))
-            val exponent = BigInteger(1, Base64.decodeBase64(keyE))
+            val modulus = BigInteger(1, Base64.decodeBase64(n))
+            val exponent = BigInteger(1, Base64.decodeBase64(e))
             val key = kf.generatePublic(RSAPublicKeySpec(modulus, exponent))
             return key as RSAPublicKey
-        }
-
-        private fun getDemoIssuer(): String {
-            return "https://demo.scitokens.org"
         }
     }
 }

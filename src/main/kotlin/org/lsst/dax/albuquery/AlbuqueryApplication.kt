@@ -72,8 +72,14 @@ class AlbuqueryApplication() : Application<AlbuqueryConfiguration>() {
         env.jersey().register(Async(metaservDAO))
         env.jersey().register(Sync(metaservDAO))
         env.jersey().register(ContextResolver<ObjectMapper> { ObjectMapper().registerModule(KotlinModule()) })
-        if (CONFIG.JWT_AUTH) {
-            env.jersey().register(JwtBearerTokenFilter())
+        if (!CONFIG.JWT_AUTH.isEmpty() && "key" in CONFIG.JWT_AUTH) {
+            val jwk = CONFIG.JWT_AUTH["key"] as HashMap<*, *>
+            val n = jwk["n"] as String
+            val e = jwk["e"] as String
+            val issuer = jwk["issuer"] as String?
+            val audience = jwk["audience"] as String?
+            val key = JwtBearerTokenFilter.getKey(n, e)
+            env.jersey().register(JwtBearerTokenFilter(key, issuer, audience))
         }
     }
 }
