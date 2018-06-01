@@ -29,11 +29,11 @@ class JwtBearerTokenFilter(
     audience: String? = null
 ) : ContainerRequestFilter {
 
-    val AUTHORIZATION_HEADER = "Authorization"
-    val verifier: JWTVerifier
+    private val verifier: JWTVerifier
 
     init {
-        val algorithm = Algorithm.RSA256(publicKey)
+        // Public Key only
+        val algorithm = Algorithm.RSA256(publicKey, null)
         val builder = JWT.require(algorithm).withIssuer(issuer)
         if (audience != null) {
             builder.withAudience(audience)
@@ -57,7 +57,10 @@ class JwtBearerTokenFilter(
         }
     }
 
-    data class JwtSecurityContext(val jwt: DecodedJWT, val originalContext: SecurityContext) : SecurityContext {
+    data class JwtSecurityContext(
+        val jwt: DecodedJWT,
+        private val originalContext: SecurityContext
+    ) : SecurityContext {
         val principal: Principal
         val groups = arrayListOf<String>()
 
@@ -96,6 +99,7 @@ class JwtBearerTokenFilter(
 
     companion object {
         private val LOGGER = LoggerFactory.getLogger(JwtBearerTokenFilter::class.java)
+        val AUTHORIZATION_HEADER = "Authorization"
 
         fun getKey(n: String, e: String): RSAPublicKey {
             val kf = KeyFactory.getInstance("RSA")
