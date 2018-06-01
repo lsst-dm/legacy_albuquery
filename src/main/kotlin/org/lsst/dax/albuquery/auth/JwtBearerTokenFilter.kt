@@ -59,6 +59,7 @@ class JwtBearerTokenFilter(
 
     data class JwtSecurityContext(val jwt: DecodedJWT, val originalContext: SecurityContext) : SecurityContext {
         val principal: Principal
+        val groups = arrayListOf<String>()
 
         init {
             principal = object : Principal {
@@ -66,10 +67,18 @@ class JwtBearerTokenFilter(
                     return jwt.subject
                 }
             }
+            val maybeGroups = jwt.claims["groups"]
+            if (maybeGroups != null && maybeGroups is List<*>) {
+                maybeGroups.forEach {
+                    if (it is String) {
+                        groups.add(it)
+                    }
+                }
+            }
         }
 
         override fun isUserInRole(role: String?): Boolean {
-            return role in jwt.claims
+            return role in groups
         }
 
         override fun getAuthenticationScheme(): String {
