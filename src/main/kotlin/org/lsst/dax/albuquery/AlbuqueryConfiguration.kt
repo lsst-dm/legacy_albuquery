@@ -41,6 +41,9 @@ class AlbuqueryConfiguration(
     val DAX_PASSWORD_STORE: List<Credential>,
 
     @JsonProperty("dax_base_path")
-    var DAX_BASE_PATH: String?
+    var DAX_BASE_PATH: String?,
+
+    @JsonProperty("dax_jwt_auth")
+    val JWT_AUTH: Boolean = false
 
 ) : Configuration()

@@ -55,6 +55,7 @@ import javax.ws.rs.POST
 import javax.ws.rs.PathParam
 import javax.ws.rs.Produces
 import javax.ws.rs.QueryParam
+import javax.ws.rs.core.SecurityContext
 import javax.ws.rs.core.UriInfo
 
 @Path("async")
@@ -71,10 +72,14 @@ class Async(val metaservDAO: MetaservDAO) {
     @Context
     lateinit var uri: UriInfo
 
+    @Context
+    lateinit var securityContext: SecurityContext
+
     @POST
     fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
         val query = queryParam ?: postBody
-        LOGGER.info("Recieved query [$query]")
+        val userInfo = securityContext.userPrincipal?.name ?: "None"
+        LOGGER.info("Recieved query [$query] from user $userInfo")
         val objectMapper = ObjectMapper().registerModule(KotlinModule())
         return createAsyncQuery(metaservDAO, uri, query, objectMapper, true)
     }
@@ -89,7 +94,7 @@ class Async(val metaservDAO: MetaservDAO) {
             // Block until completion
             queryTaskFuture.get()
         }
-        val queryDir = Paths.get(CONFIG?.DAX_BASE_PATH, queryId)
+        val queryDir = Paths.get(CONFIG.DAX_BASE_PATH, queryId)
         val resultFile = queryDir.resolve("result").toFile()
         if (resultFile.exists()) {
             return Response.ok(resultFile, "application/json").build()
