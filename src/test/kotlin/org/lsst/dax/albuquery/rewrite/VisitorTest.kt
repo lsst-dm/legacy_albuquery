@@ -52,7 +52,7 @@ class VisitorTest {
 
     @Test
     fun testSciSqlRewriter() {
-        val parsingOptions = ParsingOptions()
+        val parsingOptions = ParsingOptions(ParsingOptions.DecimalLiteralTreatment.AS_DOUBLE)
         //var sql = "SELECT * from foo WHERE CONTAINS(POINT(1,2), CIRCLE(1,2,3))"
         val rewriter = AdqlSciSqlRewriter(true)
         var sql = "SELECT * from Object o WHERE 1=CONTAINS(POINT(o.ra, o.decl), CIRCLE(1,2,3))"
@@ -73,6 +73,31 @@ class VisitorTest {
         println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
 
         sql = "SELECT * from Object o WHERE 1=CONTAINS(POINT(o.ra, o.decl), POLYGON(20,25,10,8,0,0))"
+        stmt = SqlParser().createStatement(sql, parsingOptions)
+        println(sql)
+        println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
+
+        sql = "SELECT * from W13_sdss_v2.sdss_stripe82_01.RunDeepSource " +
+            "WHERE 1=contains(point(ra, dec), box(9.5,-1.23,9.6,-1.22))"
+        stmt = SqlParser().createStatement(sql, parsingOptions)
+        println(sql)
+        println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
+
+        sql = "SELECT * from W13_sdss_v2.sdss_stripe82_01.RunDeepSource " +
+            "WHERE contains(point(ra, dec), box(9.5,-1.23,9.6,-1.22))" +
+            "AND DISTANCE(ra, dec, o.ra, o.dec) < 1"
+        stmt = SqlParser().createStatement(sql, parsingOptions)
+        println(sql)
+        println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
+
+        sql =
+            """SELECT * from W13_sdss_v2.sdss_stripe82_01.RunDeepSource
+                WHERE
+                contains(point(ra, dec), box(9.5, -1.23, 9.6, -1.22))
+                AND contains(point(ra, dec), polygon(1, 2, 9.5, -1.23, 9.6, -1.22))
+                AND contains(point(ra, dec), circle(1, 2, 3))
+                AND DISTANCE(ra, dec, o.ra, o.dec) < 1
+                AND DISTANCE(point(ra, dec), point(o.ra, o.dec)) < 2"""
         stmt = SqlParser().createStatement(sql, parsingOptions)
         println(sql)
         println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
