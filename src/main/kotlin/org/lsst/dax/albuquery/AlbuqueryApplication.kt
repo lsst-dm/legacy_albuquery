@@ -29,6 +29,7 @@ import io.dropwizard.jdbi3.JdbiFactory
 import io.dropwizard.setup.Bootstrap
 import io.dropwizard.setup.Environment
 import org.jdbi.v3.core.kotlin.KotlinPlugin
+import org.lsst.dax.albuquery.auth.JwtBearerTokenFilter
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.resources.Async
 import org.lsst.dax.albuquery.resources.Sync
@@ -37,7 +38,7 @@ import java.util.concurrent.Executors
 import javax.ws.rs.ext.ContextResolver
 
 val EXECUTOR = Executors.newCachedThreadPool()
-var CONFIG: AlbuqueryConfiguration? = null
+lateinit var CONFIG: AlbuqueryConfiguration
 lateinit var SERVICE_ACCOUNT_CONNECTIONS: ServiceAccountConnections
 
 class AlbuqueryApplication() : Application<AlbuqueryConfiguration>() {
@@ -57,12 +58,11 @@ class AlbuqueryApplication() : Application<AlbuqueryConfiguration>() {
     override fun run(config: AlbuqueryConfiguration, env: Environment) {
         CONFIG = config
         SERVICE_ACCOUNT_CONNECTIONS = ServiceAccountConnections(config.DAX_PASSWORD_STORE)
-        if (CONFIG?.DAX_BASE_PATH == null) {
+        if (CONFIG.DAX_BASE_PATH == null) {
             val base_path = Files.createTempDirectory("albuquery")
-            CONFIG?.DAX_BASE_PATH = base_path.toString()
+            CONFIG.DAX_BASE_PATH = base_path.toString()
         }
-        println()
-        println("TEMP DIR AT " + CONFIG?.DAX_BASE_PATH)
+        println("TEMP DIR AT " + CONFIG.DAX_BASE_PATH)
         //val healthCheck = TemplateHealthCheck(config.template)
         //env.healthChecks().register("template", healthCheck)
         val factory = JdbiFactory()
@@ -72,5 +72,14 @@ class AlbuqueryApplication() : Application<AlbuqueryConfiguration>() {
         env.jersey().register(Async(metaservDAO))
         env.jersey().register(Sync(metaservDAO))
         env.jersey().register(ContextResolver<ObjectMapper> { ObjectMapper().registerModule(KotlinModule()) })
+        if (!CONFIG.JWT_AUTH.isEmpty() && "key" in CONFIG.JWT_AUTH) {
+            val jwk = CONFIG.JWT_AUTH["key"] as HashMap<*, *>
+            val n = jwk["n"] as String
+            val e = jwk["e"] as String
+            val issuer = jwk["issuer"] as String?
+            val audience = jwk["audience"] as String?
+            val key = JwtBearerTokenFilter.getKey(n, e)
+            env.jersey().register(JwtBearerTokenFilter(key, issuer, audience))
+        }
     }
 }

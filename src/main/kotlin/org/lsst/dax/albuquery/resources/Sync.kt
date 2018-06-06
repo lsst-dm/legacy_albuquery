@@ -33,6 +33,7 @@ import javax.ws.rs.Path
 import javax.ws.rs.QueryParam
 import javax.ws.rs.core.Context
 import javax.ws.rs.core.Response
+import javax.ws.rs.core.SecurityContext
 import javax.ws.rs.core.UriInfo
 
 @Path("sync")
@@ -41,11 +42,15 @@ class Sync(val metaservDAO: MetaservDAO) {
     @Context
     lateinit var uri: UriInfo
 
+    @Context
+    lateinit var securityContext: SecurityContext
+
     @Timed
     @POST
     fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
         val query = queryParam ?: postBody
-        LOGGER.info("Recieved query [$query]")
+        val userInfo = securityContext.userPrincipal?.name ?: "None"
+        LOGGER.info("Recieved query [$query] from user $userInfo")
         val om = ObjectMapper().registerModule(KotlinModule())
         return Async.createAsyncQuery(metaservDAO, uri, query, om, true)
     }
