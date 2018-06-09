@@ -71,6 +71,7 @@ data class ParsedTable(
 data class ColumnMetadata(
     val name: String,
     val datatype: String?,
+    val description: String,
     val ucd: String?,
     val unit: String?,
     val tableName: String?,

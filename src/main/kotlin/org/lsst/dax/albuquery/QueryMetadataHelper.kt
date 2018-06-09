@@ -87,6 +87,7 @@ class QueryMetadataHelper(val analyzer: Analyzer.TableAndColumnExtractor) {
             val columnMetadata =
                 ColumnMetadata(name,
                     datatype = metaservColumn?.datatype ?: jdbcToLsstType(jdbcColumn.jdbcType),
+                    description = metaservColumn?.description ?: "",
                     ucd = metaservColumn?.ucd,
                     unit = metaservColumn?.unit,
                     tableName = metaservColumn?.tableName ?: jdbcColumn.tableName,
