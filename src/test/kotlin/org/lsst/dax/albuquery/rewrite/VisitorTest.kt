@@ -30,7 +30,6 @@ import com.facebook.presto.sql.tree.Node
 import org.junit.Test
 import java.util.LinkedList
 import java.util.Optional
-import java.util.Stack
 
 class VisitorTest {
 
@@ -102,5 +101,4 @@ class VisitorTest {
         println(sql)
         println(SqlFormatter.formatSql(rewriter.process(stmt, stack), Optional.empty()))
     }
-
 }

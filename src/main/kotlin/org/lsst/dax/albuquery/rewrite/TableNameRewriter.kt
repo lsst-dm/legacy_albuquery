@@ -22,7 +22,6 @@
 
 package org.lsst.dax.albuquery.rewrite
 
-import com.facebook.presto.sql.tree.Node
 import com.facebook.presto.sql.tree.QualifiedName
 import com.facebook.presto.sql.tree.Table
 

@@ -12,7 +12,6 @@ import com.facebook.presto.sql.tree.QualifiedName
 import java.math.BigDecimal
 import java.util.LinkedList
 
-
 class AdqlSciSqlRewriter(val isQserv: Boolean) : AstRebuilder<LinkedList<Node>>() {
 
     val SHAPES = setOf("circle", "box", "polygon")
@@ -139,7 +138,8 @@ class AdqlSciSqlRewriter(val isQserv: Boolean) : AstRebuilder<LinkedList<Node>>(
                     if (value !is Literal || value.getBigDecimal() == null) {
                         throw ParsingException("Argument is not a numeric literal")
                     }
-                    val bigDecimal = value.getBigDecimal()!!  // We just checked if it was null
+                    // We just checked if it was null
+                    val bigDecimal = value.getBigDecimal()!!
                     if (arg.sign == ArithmeticUnaryExpression.Sign.MINUS) bigDecimal.negate() else bigDecimal
                 }
                 is Literal -> {
