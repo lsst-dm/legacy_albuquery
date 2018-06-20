@@ -24,13 +24,13 @@ package org.lsst.dax.albuquery
 
 import com.facebook.presto.sql.parser.ParsingException
 import com.facebook.presto.sql.tree.AliasedRelation
-import com.facebook.presto.sql.tree.QualifiedName
-import com.facebook.presto.sql.tree.DefaultTraversalVisitor
-import com.facebook.presto.sql.tree.Identifier
-import com.facebook.presto.sql.tree.QuerySpecification
 import com.facebook.presto.sql.tree.AllColumns
+import com.facebook.presto.sql.tree.DefaultTraversalVisitor
 import com.facebook.presto.sql.tree.DereferenceExpression
+import com.facebook.presto.sql.tree.Identifier
 import com.facebook.presto.sql.tree.Join
+import com.facebook.presto.sql.tree.QualifiedName
+import com.facebook.presto.sql.tree.QuerySpecification
 import com.facebook.presto.sql.tree.Relation
 import com.facebook.presto.sql.tree.SingleColumn
 import com.facebook.presto.sql.tree.SubqueryExpression
@@ -80,7 +80,7 @@ class Analyzer {
                         }
                     }
                     if (qualifiedName != null) {
-                        //val name = qualifiedName.toString()
+                        // val name = qualifiedName.toString()
                         val alias = column.alias.orElse(null)?.value
                         columns.add(ParsedColumn(nameOf(qualifiedName), qualifiedName, alias, position))
                     }

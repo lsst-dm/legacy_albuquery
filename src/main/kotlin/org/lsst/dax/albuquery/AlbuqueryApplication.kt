@@ -63,8 +63,8 @@ class AlbuqueryApplication() : Application<AlbuqueryConfiguration>() {
         }
         println()
         println("TEMP DIR AT " + CONFIG?.DAX_BASE_PATH)
-        //val healthCheck = TemplateHealthCheck(config.template)
-        //env.healthChecks().register("template", healthCheck)
+        // val healthCheck = TemplateHealthCheck(config.template)
+        // env.healthChecks().register("template", healthCheck)
         val factory = JdbiFactory()
         val jdbi = factory.build(env, config.DAX_METASERV_DB, "mysql")
         jdbi.installPlugin(KotlinPlugin())

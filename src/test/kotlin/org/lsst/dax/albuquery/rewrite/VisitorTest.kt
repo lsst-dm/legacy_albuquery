@@ -52,7 +52,7 @@ class VisitorTest {
     @Test
     fun testSciSqlRewriter() {
         val parsingOptions = ParsingOptions(ParsingOptions.DecimalLiteralTreatment.AS_DOUBLE)
-        //var sql = "SELECT * from foo WHERE CONTAINS(POINT(1,2), CIRCLE(1,2,3))"
+        // var sql = "SELECT * from foo WHERE CONTAINS(POINT(1,2), CIRCLE(1,2,3))"
         val rewriter = AdqlSciSqlRewriter(true)
         var sql = "SELECT * from Object o WHERE 1=CONTAINS(POINT(o.ra, o.decl), CIRCLE(1,2,3))"
         var stmt = SqlParser().createStatement(sql, parsingOptions)
