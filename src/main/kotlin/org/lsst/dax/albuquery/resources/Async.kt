@@ -37,24 +37,25 @@ import org.lsst.dax.albuquery.EXECUTOR
 import org.lsst.dax.albuquery.ErrorResponse
 import org.lsst.dax.albuquery.ParsedTable
 import org.lsst.dax.albuquery.dao.MetaservDAO
+import org.lsst.dax.albuquery.rewrite.AdqlSciSqlRewriter
 import org.lsst.dax.albuquery.rewrite.TableNameRewriter
 import org.lsst.dax.albuquery.tasks.QueryTask
 import org.slf4j.LoggerFactory
 import java.net.URI
 import java.nio.file.Paths
 import java.util.UUID
-import javax.ws.rs.core.MediaType
-import javax.ws.rs.core.Context
-import javax.ws.rs.core.Response
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Future
 import javax.ws.rs.FormParam
 import javax.ws.rs.GET
-import javax.ws.rs.Path
 import javax.ws.rs.POST
+import javax.ws.rs.Path
 import javax.ws.rs.PathParam
 import javax.ws.rs.Produces
 import javax.ws.rs.QueryParam
+import javax.ws.rs.core.Context
+import javax.ws.rs.core.MediaType
+import javax.ws.rs.core.Response
 import javax.ws.rs.core.UriInfo
 
 @Path("async")
@@ -133,7 +134,8 @@ class Async(val metaservDAO: MetaservDAO) {
                 qualifiedTables = analyzer.tables
                 dbUri = Analyzer.getDatabaseURI(metaservDAO, analyzer.tables)
                 // Once we've found the database URI, rewrite the query
-                queryStatement = stripInstanceIdentifiers(statement)
+                val strippedQuery = stripInstanceIdentifiers(statement)
+                queryStatement = rewriteAdql(strippedQuery, dbUri)
             } catch (ex: ParsingException) {
                 val err = ErrorResponse(ex.errorMessage, ex.javaClass.simpleName, null, cause = ex.message)
                 return Response.status(Response.Status.BAD_REQUEST).entity(err).build()
@@ -163,6 +165,16 @@ class Async(val metaservDAO: MetaservDAO) {
         private fun stripInstanceIdentifiers(query: Query): Query {
             // Rewrite query to extract database instance information
             return TableNameRewriter().process(query) as Query
+        }
+
+        /**
+         * Using the dburi, detect database flavor and rewrite
+         * database accordingly.
+         */
+        private fun rewriteAdql(query: Query, dbUri: URI): Query {
+            // FIXME: More robust way of finding out if this is qserv
+            val isQserv = Regex("qserv").containsMatchIn(dbUri.toString())
+            return AdqlSciSqlRewriter(isQserv).process(query) as Query
         }
     }
 }
