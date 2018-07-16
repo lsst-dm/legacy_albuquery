@@ -56,6 +56,7 @@ import javax.ws.rs.PathParam
 import javax.ws.rs.Produces
 import javax.ws.rs.QueryParam
 import javax.ws.rs.core.UriInfo
+import javax.ws.rs.core.HttpHeaders
 
 @Path("async")
 class Async(val metaservDAO: MetaservDAO) {
@@ -70,6 +71,7 @@ class Async(val metaservDAO: MetaservDAO) {
 
     @Context
     lateinit var uri: UriInfo
+    lateinit var headers: HttpHeaders
 
     @POST
     fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
@@ -82,7 +84,7 @@ class Async(val metaservDAO: MetaservDAO) {
     @Timed
     @GET
     @Path("{id}/results/result")
-    @Produces(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML)
     fun getQuery(@PathParam("id") queryId: String): Response {
         val queryTaskFuture = findOutstandingQuery(queryId)
         if (queryTaskFuture != null) {
@@ -92,7 +94,10 @@ class Async(val metaservDAO: MetaservDAO) {
         val queryDir = Paths.get(CONFIG?.DAX_BASE_PATH, queryId)
         val resultFile = queryDir.resolve("result").toFile()
         if (resultFile.exists()) {
-            return Response.ok(resultFile, "application/json").build()
+            val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
+            if (ct == MediaType.APPLICATION_XML)
+                return Response.ok(resultFile, MediaType.APPLICATION_XML).build()
+            return Response.ok(resultFile, MediaType.APPLICATION_JSON).build()
         }
         val errorFile = queryDir.resolve("error").toFile()
         if (errorFile.exists()) {
