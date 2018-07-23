@@ -95,6 +95,7 @@ class QueryTask(
             .associateMetadata(rowIterator.jdbcColumnMetadata, metaservInfo)
 
         val entity = AsyncResponse(
+            queryId = queryId,
             metadata = ResponseMetadata(columnMetadataList),
             results = rowIterator
         )

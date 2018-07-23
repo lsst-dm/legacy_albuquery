@@ -39,6 +39,7 @@ import org.lsst.dax.albuquery.ParsedTable
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.rewrite.TableNameRewriter
 import org.lsst.dax.albuquery.tasks.QueryTask
+import org.lsst.dax.albuquery.vo.TableMapper
 import org.slf4j.LoggerFactory
 import java.net.URI
 import java.nio.file.Paths
@@ -62,6 +63,7 @@ import javax.ws.rs.core.HttpHeaders
 class Async(val metaservDAO: MetaservDAO) {
 
     data class AsyncResponse(
+        val queryId: String,
         val metadata: ResponseMetadata,
         // Annotation is Workaround for https://github.com/FasterXML/jackson-module-kotlin/issues/4
         @JsonSerialize(`as` = java.util.Iterator::class) val results: Iterator<List<Any?>>
@@ -77,8 +79,13 @@ class Async(val metaservDAO: MetaservDAO) {
     fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
         val query = queryParam ?: postBody
         LOGGER.info("Recieved query [$query]")
-        val objectMapper = ObjectMapper().registerModule(KotlinModule())
-        return createAsyncQuery(metaservDAO, uri, query, objectMapper, true)
+        val mapper: ObjectMapper
+        val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
+        if (ct == MediaType.APPLICATION_XML)
+            mapper = TableMapper()
+        else // JSON as default
+            mapper = ObjectMapper().registerModule(KotlinModule())
+        return createAsyncQuery(metaservDAO, uri, query, mapper, true)
     }
 
     @Timed
