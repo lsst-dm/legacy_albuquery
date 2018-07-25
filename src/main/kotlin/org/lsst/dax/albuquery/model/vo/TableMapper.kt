@@ -31,76 +31,76 @@ import org.lsst.dax.albuquery.ColumnMetadata
 import org.lsst.dax.albuquery.resources.Async.AsyncResponse
 
 fun writeField(w: Writer, field: ColumnMetadata) {
-    var str: String = "<FIELD"
-    str.plus(" name=" + field.name)
-    str.plus(" ucd=" + field.ucd)
-    str.plus(" datatype=" + field.datatype)
-    str.plus(" unit=" + field.unit)
-    str.plus(" description=" + field.description)
-    str.plus(" />")
-    w.write(str)
+    var str = StringBuilder("<FIELD ")
+    str.append("name=\"" + field.name)
+    str.append("\" ucd=\"" + field.ucd)
+    str.append("\" datatype=\"" + field.datatype)
+    str.append("\" unit=\"" + field.unit)
+    str.append("\">")
+    str.append("<DESCRIPTION>" + field.description)
+    str.append("</DESCRIPTION>")
+    str.append("</FIELD>")
+    w.write(str.toString())
 }
 
 fun writeRow(w: Writer, row: List<Any?>) {
-    var str: String = "<TR>"
+    var str = StringBuilder("<TR>")
     for (col in row) {
-        str.plus("<TD>")
-        str.plus(col)
-        str.plus("</TD>")
+        str.append("<TD>")
+        str.append(col)
+        str.append("</TD>")
     }
-    str.plus("</TR>")
-    w.write(str)
+    str.append("</TR>")
+    w.write(str.toString())
 }
 
 class TableMapper() : ObjectMapper() {
 
     override fun writeValue(w: Writer, entity: Any) {
-        var str: String
+        var str: StringBuilder
         if (entity is ErrorResponse) {
-            val err = entity as ErrorResponse
-            str = "<Error>"
-            str.plus("<Message>")
-            str.plus(err.message)
-            str.plus("<type>")
-            str.plus(err.type)
-            str.plus("<code>")
-            str.plus(err.code)
-            str.plus("<cause>")
-            str.plus(err.cause)
-            w.write(str)
+            val err = entity
+            str = StringBuilder("<Error>")
+            str.append("<Message>")
+            str.append(err.message)
+            str.append("<type>")
+            str.append(err.type)
+            str.append("<code>")
+            str.append(err.code)
+            str.append("<cause>")
+            str.append(err.cause)
+            w.write(str.toString())
             return
         }
         if (entity !is AsyncResponse) return
-        val ar = entity as AsyncResponse
+        val ar = entity
         var fields: List<ColumnMetadata> = ar.metadata.columns
         var rowIterator: Iterator<List<Any?>> = ar.results
-        str = "<?xml version=\"1.0\"?>"
-        str.plus("<VOTABLE version=\"1.3\" xmlns=\"http://www.ivoa.net/xml/VOTable/v1.3\">")
-        str.plus("<RESOURCE name=\"Result for query: \"")
-        str.plus(ar.queryId)
-        str.plus("type=\"meta\">")
-        str.plus("<TABLE name=\"")
-        str.plus("") // FIXME:
-        str.plus(">")
-        str.plus("<DESCRIPTION>")
-        str.plus("Query Results")
-        str.plus("</DESCRIPTION>")
-        w.write(str)
+        str = StringBuilder("<?xml version=\"1.0\"?>")
+        str.append("<VOTABLE version=\"1.3\" xmlns=\"http://www.ivoa.net/xml/VOTable/v1.3\">")
+        str.append("<RESOURCE name=\"Result for query: ")
+        str.append(ar.queryId)
+        str.append("\" type=\"meta\">")
+        str.append("<TABLE name=\"")
+        str.append("") // FIXME:
+        str.append("\">")
+        str.append("<DESCRIPTION>")
+        str.append("Query Results")
+        str.append("</DESCRIPTION>")
+        w.write(str.toString())
         for (field in fields ) {
             writeField(w, field)
         }
-        str = "<DATA><TABLEDATA>"
-        str.plus("<TR>")
-        w.write(str)
+        w.write("<DATA><TABLEDATA>")
         // process the data rows
         for (row in rowIterator) {
             writeRow(w, row)
         }
-        str = "</TR>"
-        str.plus("</TABLEDATA></DATA>")
-        str.plus("</TABLE>")
-        str.plus("</RESOURCE>")
-        str.plus("</VOTABLE>")
-        w.write(str)
+        str = StringBuilder("</TABLEDATA></DATA>")
+        str.append("</TABLE>")
+        str.append("</RESOURCE>")
+        str.append("</VOTABLE>")
+        w.write(str.toString())
+        w.close()
     }
 }

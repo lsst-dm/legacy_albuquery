@@ -73,6 +73,7 @@ class Async(val metaservDAO: MetaservDAO) {
 
     @Context
     lateinit var uri: UriInfo
+    @Context
     lateinit var headers: HttpHeaders
 
     @POST
@@ -85,14 +86,14 @@ class Async(val metaservDAO: MetaservDAO) {
             mapper = TableMapper()
         else // JSON as default
             mapper = ObjectMapper().registerModule(KotlinModule())
-        return createAsyncQuery(metaservDAO, uri, query, mapper, true)
+        return createAsyncQuery(metaservDAO, uri, query, mapper, resultRedirect=true)
     }
 
     @Timed
     @GET
-    @Path("{id}/results/result")
+    @Path("{id}/results/{result}")
     @Produces(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML)
-    fun getQuery(@PathParam("id") queryId: String): Response {
+    fun getQuery(@PathParam("id") queryId: String, @PathParam("result") result: String): Response {
         val queryTaskFuture = findOutstandingQuery(queryId)
         if (queryTaskFuture != null) {
             // Block until completion
@@ -101,10 +102,10 @@ class Async(val metaservDAO: MetaservDAO) {
         val queryDir = Paths.get(CONFIG?.DAX_BASE_PATH, queryId)
         val resultFile = queryDir.resolve("result").toFile()
         if (resultFile.exists()) {
-            val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
-            if (ct == MediaType.APPLICATION_XML)
+            if (result.contains("xml"))
                 return Response.ok(resultFile, MediaType.APPLICATION_XML).build()
-            return Response.ok(resultFile, MediaType.APPLICATION_JSON).build()
+            else // default
+                return Response.ok(resultFile, MediaType.APPLICATION_JSON).build()
         }
         val errorFile = queryDir.resolve("error").toFile()
         if (errorFile.exists()) {
@@ -165,7 +166,10 @@ class Async(val metaservDAO: MetaservDAO) {
 
             val createdUriBuilder = uri.baseUriBuilder.path(Async::class.java).path(queryId)
             val createdUri = if (resultRedirect) {
-                createdUriBuilder.path("results").path("result").build()
+                if (objectMapper is TableMapper)
+                    createdUriBuilder.path("results").path("result.xml").build()
+                else
+                    createdUriBuilder.path("results").path("result.json").build()
             } else {
                 createdUriBuilder.build()
             }
