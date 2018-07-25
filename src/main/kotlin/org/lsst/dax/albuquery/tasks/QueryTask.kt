@@ -25,6 +25,7 @@ package org.lsst.dax.albuquery.tasks
 import com.facebook.presto.sql.SqlFormatter
 import com.facebook.presto.sql.tree.Query
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.lsst.dax.albuquery.vo.TableMapper
 import org.lsst.dax.albuquery.Analyzer.TableAndColumnExtractor
 import org.lsst.dax.albuquery.CONFIG
 import org.lsst.dax.albuquery.ErrorResponse
@@ -37,6 +38,7 @@ import org.lsst.dax.albuquery.lookupMetadata
 import org.lsst.dax.albuquery.resources.Async.AsyncResponse
 import org.lsst.dax.albuquery.resources.Async.ResponseMetadata
 import java.net.URI
+import java.nio.file.Path
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.sql.SQLException
@@ -101,13 +103,17 @@ class QueryTask(
         )
         // Write metadata?
         // objectMapper.writeValue(Files.newBufferedWriter(resultDir.resolve("metadata.json")), entity.metadata)
-
+        val resultPath: Path
+        if (objectMapper is TableMapper)
+            resultPath = resultDir.resolve("result.xml")
+        else // default
+            resultPath = resultDir.resolve("result.json")
         /**
          * May want to find provider ahead of time or cycle through a list of providers
          * @see javax.ws.rs.ext.MessageBodyWriter.isWriteable
          * @see javax.ws.rs.ext.MessageBodyWriter.writeTo
          */
-        objectMapper.writeValue(Files.newBufferedWriter(resultDir.resolve("result")), entity)
+        objectMapper.writeValue(Files.newBufferedWriter(resultPath), entity)
         return this
     }
 }

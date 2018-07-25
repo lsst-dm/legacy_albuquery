@@ -100,7 +100,7 @@ class Async(val metaservDAO: MetaservDAO) {
             queryTaskFuture.get()
         }
         val queryDir = Paths.get(CONFIG?.DAX_BASE_PATH, queryId)
-        val resultFile = queryDir.resolve("result").toFile()
+        val resultFile = queryDir.resolve(result).toFile()
         if (resultFile.exists()) {
             if (result.contains("xml"))
                 return Response.ok(resultFile, MediaType.APPLICATION_XML).build()
@@ -168,7 +168,7 @@ class Async(val metaservDAO: MetaservDAO) {
             val createdUri = if (resultRedirect) {
                 if (objectMapper is TableMapper)
                     createdUriBuilder.path("results").path("result.xml").build()
-                else
+                else // default
                     createdUriBuilder.path("results").path("result.json").build()
             } else {
                 createdUriBuilder.build()
