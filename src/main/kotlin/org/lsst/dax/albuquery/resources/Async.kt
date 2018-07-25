@@ -86,7 +86,7 @@ class Async(val metaservDAO: MetaservDAO) {
             mapper = TableMapper()
         else // JSON as default
             mapper = ObjectMapper().registerModule(KotlinModule())
-        return createAsyncQuery(metaservDAO, uri, query, mapper, resultRedirect=true)
+        return createAsyncQuery(metaservDAO, uri, query, mapper, true)
     }
 
     @Timed

@@ -32,7 +32,11 @@ import javax.ws.rs.FormParam
 import javax.ws.rs.POST
 import javax.ws.rs.Path
 import javax.ws.rs.QueryParam
-import javax.ws.rs.core.*
+import javax.ws.rs.core.Context
+import javax.ws.rs.core.UriInfo
+import javax.ws.rs.core.HttpHeaders
+import javax.ws.rs.core.Response
+import javax.ws.rs.core.MediaType
 
 @Path("sync")
 class Sync(val metaservDAO: MetaservDAO) {
@@ -50,9 +54,8 @@ class Sync(val metaservDAO: MetaservDAO) {
         val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
         val om: ObjectMapper
         if (ct == MediaType.APPLICATION_XML)
-            om =  TableMapper()
-        else
-            om = ObjectMapper().registerModule(KotlinModule())
+            om = TableMapper()
+        else om = ObjectMapper().registerModule(KotlinModule())
         return Async.createAsyncQuery(metaservDAO, uri, query, om, resultRedirect = true)
     }
 
