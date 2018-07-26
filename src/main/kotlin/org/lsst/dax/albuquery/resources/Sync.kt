@@ -26,28 +26,37 @@ import com.codahale.metrics.annotation.Timed
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.KotlinModule
 import org.lsst.dax.albuquery.dao.MetaservDAO
+import org.lsst.dax.albuquery.vo.TableMapper
 import org.slf4j.LoggerFactory
 import javax.ws.rs.FormParam
 import javax.ws.rs.POST
 import javax.ws.rs.Path
 import javax.ws.rs.QueryParam
 import javax.ws.rs.core.Context
-import javax.ws.rs.core.Response
 import javax.ws.rs.core.UriInfo
+import javax.ws.rs.core.HttpHeaders
+import javax.ws.rs.core.Response
+import javax.ws.rs.core.MediaType
 
 @Path("sync")
 class Sync(val metaservDAO: MetaservDAO) {
 
     @Context
     lateinit var uri: UriInfo
+    @Context
+    lateinit var headers: HttpHeaders
 
     @Timed
     @POST
     fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
         val query = queryParam ?: postBody
         LOGGER.info("Recieved query [$query]")
-        val om = ObjectMapper().registerModule(KotlinModule())
-        return Async.createAsyncQuery(metaservDAO, uri, query, om, true)
+        val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
+        val om: ObjectMapper
+        if (ct == MediaType.APPLICATION_XML)
+            om = TableMapper()
+        else om = ObjectMapper().registerModule(KotlinModule())
+        return Async.createAsyncQuery(metaservDAO, uri, query, om, resultRedirect = true)
     }
 
     companion object {
