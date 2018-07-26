@@ -265,6 +265,7 @@ fun jdbcToLsstType(jdbcType: JDBCType): String {
         JDBCType.TINYINT -> "int"
         JDBCType.BIGINT -> "long"
         JDBCType.FLOAT -> "float"
+        JDBCType.REAL -> "float"
         JDBCType.DOUBLE -> "double"
         JDBCType.DECIMAL -> "double" // FIXME
         JDBCType.NUMERIC -> "double" // FIXME
