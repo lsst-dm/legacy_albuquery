@@ -39,6 +39,7 @@ import org.lsst.dax.albuquery.ParsedTable
 import org.lsst.dax.albuquery.dao.MetaservDAO
 import org.lsst.dax.albuquery.rewrite.TableNameRewriter
 import org.lsst.dax.albuquery.tasks.QueryTask
+import org.lsst.dax.albuquery.vo.TableMapper
 import org.slf4j.LoggerFactory
 import java.net.URI
 import java.nio.file.Paths
@@ -56,11 +57,13 @@ import javax.ws.rs.PathParam
 import javax.ws.rs.Produces
 import javax.ws.rs.QueryParam
 import javax.ws.rs.core.UriInfo
+import javax.ws.rs.core.HttpHeaders
 
 @Path("async")
 class Async(val metaservDAO: MetaservDAO) {
 
     data class AsyncResponse(
+        val queryId: String,
         val metadata: ResponseMetadata,
         // Annotation is Workaround for https://github.com/FasterXML/jackson-module-kotlin/issues/4
         @JsonSerialize(`as` = java.util.Iterator::class) val results: Iterator<List<Any?>>
@@ -70,29 +73,39 @@ class Async(val metaservDAO: MetaservDAO) {
 
     @Context
     lateinit var uri: UriInfo
+    @Context
+    lateinit var headers: HttpHeaders
 
     @POST
     fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
         val query = queryParam ?: postBody
         LOGGER.info("Recieved query [$query]")
-        val objectMapper = ObjectMapper().registerModule(KotlinModule())
-        return createAsyncQuery(metaservDAO, uri, query, objectMapper, true)
+        val mapper: ObjectMapper
+        val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
+        if (ct == MediaType.APPLICATION_XML)
+            mapper = TableMapper()
+        else // JSON as default
+            mapper = ObjectMapper().registerModule(KotlinModule())
+        return createAsyncQuery(metaservDAO, uri, query, mapper, true)
     }
 
     @Timed
     @GET
-    @Path("{id}/results/result")
-    @Produces(MediaType.APPLICATION_JSON)
-    fun getQuery(@PathParam("id") queryId: String): Response {
+    @Path("{id}/results/{result}")
+    @Produces(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML)
+    fun getQuery(@PathParam("id") queryId: String, @PathParam("result") result: String): Response {
         val queryTaskFuture = findOutstandingQuery(queryId)
         if (queryTaskFuture != null) {
             // Block until completion
             queryTaskFuture.get()
         }
         val queryDir = Paths.get(CONFIG?.DAX_BASE_PATH, queryId)
-        val resultFile = queryDir.resolve("result").toFile()
+        val resultFile = queryDir.resolve(result).toFile()
         if (resultFile.exists()) {
-            return Response.ok(resultFile, "application/json").build()
+            if (result.contains("xml"))
+                return Response.ok(resultFile, MediaType.APPLICATION_XML).build()
+            else // default
+                return Response.ok(resultFile, MediaType.APPLICATION_JSON).build()
         }
         val errorFile = queryDir.resolve("error").toFile()
         if (errorFile.exists()) {
@@ -153,7 +166,10 @@ class Async(val metaservDAO: MetaservDAO) {
 
             val createdUriBuilder = uri.baseUriBuilder.path(Async::class.java).path(queryId)
             val createdUri = if (resultRedirect) {
-                createdUriBuilder.path("results").path("result").build()
+                if (objectMapper is TableMapper)
+                    createdUriBuilder.path("results").path("result.xml").build()
+                else // default
+                    createdUriBuilder.path("results").path("result.json").build()
             } else {
                 createdUriBuilder.build()
             }
