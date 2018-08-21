@@ -16,4 +16,4 @@ spec:
       - backend:
           serviceName: albuquery-service
           servicePort: 8080
-        path: /dax/albuquery
+        path: /api/db/v1
