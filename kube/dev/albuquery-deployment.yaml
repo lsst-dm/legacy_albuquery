@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: albuquery-deployment
+  labels:
+    app: albuquery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: albuquery
+  template:
+    metadata:
+      labels:
+        app: albuquery
+    spec:
+      containers:
+      - name: albuquery
+        image: webserv/albuquery:0.1-SNAPSHOT
+        command: ['java', '-jar', 'app.jar', 'server', '/etc/albuquery/albuquery.yml']
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: config
+          mountPath: "/etc/albuquery"
+          readOnly: true
+      volumes:
+      - name: config
+        secret:
+          secretName: albuquery-config
