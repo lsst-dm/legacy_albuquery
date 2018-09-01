@@ -32,23 +32,18 @@ import org.lsst.dax.albuquery.resources.Async.AsyncResponse
 
 fun writeField(w: Writer, field: ColumnMetadata) {
     var str = StringBuilder("<FIELD ")
-    str.append("name=\"" + field.name)
-    str.append("\" ucd=\"" + field.ucd)
-    str.append("\" datatype=\"" + field.datatype)
-    str.append("\" unit=\"" + field.unit)
-    str.append("\">")
-    str.append("<DESCRIPTION>" + field.description)
-    str.append("</DESCRIPTION>")
-    str.append("</FIELD>")
+    str.append("name=\"${field.name}\" ")
+    str.append("ucd=\"${field.ucd}\" ")
+    str.append("datatype=\"${field.datatype}\" ")
+    str.append("unit=\"${field.unit}\">")
+    str.append("<DESCRIPTION>${field.description}</DESCRIPTION></FIELD>")
     w.write(str.toString())
 }
 
 fun writeRow(w: Writer, row: List<Any?>) {
     var str = StringBuilder("<TR>")
     for (col in row) {
-        str.append("<TD>")
-        str.append(col)
-        str.append("</TD>")
+        str.append("<TD>$col</TD>")
     }
     str.append("</TR>")
     w.write(str.toString())
@@ -61,14 +56,11 @@ class TableMapper() : ObjectMapper() {
         if (entity is ErrorResponse) {
             val err = entity
             str = StringBuilder("<Error>")
-            str.append("<Message>")
-            str.append(err.message)
-            str.append("<type>")
-            str.append(err.type)
-            str.append("<code>")
-            str.append(err.code)
-            str.append("<cause>")
-            str.append(err.cause)
+            str.append("<Message>${err.message}</Message>")
+            str.append("<type>${err.type}</type>")
+            str.append("<code>${err.code}</code>")
+            str.append("<cause>${err.cause}</cause>")
+            str.append("</Error>")
             w.write(str.toString())
             return
         }
@@ -78,17 +70,12 @@ class TableMapper() : ObjectMapper() {
         var rowIterator: Iterator<List<Any?>> = ar.results
         str = StringBuilder("<?xml version=\"1.0\"?>")
         str.append("<VOTABLE version=\"1.3\" xmlns=\"http://www.ivoa.net/xml/VOTable/v1.3\">")
-        str.append("<RESOURCE name=\"Result for query: ")
-        str.append(ar.queryId)
+        str.append("<RESOURCE name=\"Result for query: ${ar.queryId}")
         str.append("\" type=\"meta\">")
-        str.append("<TABLE name=\"")
-        str.append("") // FIXME:
-        str.append("\">")
-        str.append("<DESCRIPTION>")
-        str.append("Query Results")
-        str.append("</DESCRIPTION>")
+        str.append("<TABLE name=\"${fields[0].tableName}\">")
+        str.append("<DESCRIPTION>Query Results</DESCRIPTION>")
         w.write(str.toString())
-        for (field in fields ) {
+        for (field in fields) {
             writeField(w, field)
         }
         w.write("<DATA><TABLEDATA>")
@@ -97,9 +84,7 @@ class TableMapper() : ObjectMapper() {
             writeRow(w, row)
         }
         str = StringBuilder("</TABLEDATA></DATA>")
-        str.append("</TABLE>")
-        str.append("</RESOURCE>")
-        str.append("</VOTABLE>")
+        str.append("</TABLE></RESOURCE></VOTABLE>")
         w.write(str.toString())
         w.close()
     }

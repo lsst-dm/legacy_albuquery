@@ -25,9 +25,9 @@ package org.lsst.dax.albuquery.tasks
 import com.facebook.presto.sql.SqlFormatter
 import com.facebook.presto.sql.tree.Query
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.lsst.dax.albuquery.vo.TableMapper
 import org.lsst.dax.albuquery.Analyzer.TableAndColumnExtractor
 import org.lsst.dax.albuquery.CONFIG
+import org.lsst.dax.albuquery.PhaseInfo
 import org.lsst.dax.albuquery.ErrorResponse
 import org.lsst.dax.albuquery.ParsedTable
 import org.lsst.dax.albuquery.QueryMetadataHelper
@@ -63,8 +63,10 @@ class QueryTask(
 ) : Callable<QueryTask> {
 
     val columnAnalyzer: TableAndColumnExtractor
+    val phaseInfo: PhaseInfo
 
     init {
+        phaseInfo = PhaseInfo(identifier = queryId, phase = "PENDING")
         columnAnalyzer = TableAndColumnExtractor()
         queryStatement.accept(columnAnalyzer, null)
     }
@@ -88,8 +90,12 @@ class QueryTask(
             val conn = SERVICE_ACCOUNT_CONNECTIONS.getConnection(dbUri)
             rowIterator = RowStreamIterator(conn, query, resultDir)
         } catch (ex: SQLException) {
-            val error = ErrorResponse(ex.message, "SQLException", null, null)
-            objectMapper.writeValue(Files.newBufferedWriter(resultDir.resolve("error")), error)
+            val error = ErrorResponse(ex.message, "SQLException",
+                ex.getSQLState(), ex.errorCode.toString())
+            val errorFile = resultDir.resolve("error")
+            objectMapper.writeValue(Files.newBufferedWriter(errorFile), error)
+            phaseInfo.phase = "ERROR"
+            phaseInfo.errorFile = errorFile.toString()
             return this
         }
 
@@ -103,17 +109,14 @@ class QueryTask(
         )
         // Write metadata?
         // objectMapper.writeValue(Files.newBufferedWriter(resultDir.resolve("metadata.json")), entity.metadata)
-        val resultPath: Path
-        if (objectMapper is TableMapper)
-            resultPath = resultDir.resolve("result.xml")
-        else // default
-            resultPath = resultDir.resolve("result.json")
+        val resultPath: Path = resultDir.resolve("result")
         /**
          * May want to find provider ahead of time or cycle through a list of providers
          * @see javax.ws.rs.ext.MessageBodyWriter.isWriteable
          * @see javax.ws.rs.ext.MessageBodyWriter.writeTo
          */
         objectMapper.writeValue(Files.newBufferedWriter(resultPath), entity)
+        phaseInfo.phase = "COMPLETED"
         return this
     }
 }

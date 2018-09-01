@@ -41,6 +41,7 @@ import org.lsst.dax.albuquery.rewrite.TableNameRewriter
 import org.lsst.dax.albuquery.tasks.QueryTask
 import org.lsst.dax.albuquery.vo.TableMapper
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.net.URI
 import java.nio.file.Paths
 import java.util.UUID
@@ -49,6 +50,7 @@ import javax.ws.rs.core.Context
 import javax.ws.rs.core.Response
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Future
+import java.util.concurrent.TimeUnit
 import javax.ws.rs.FormParam
 import javax.ws.rs.GET
 import javax.ws.rs.Path
@@ -77,37 +79,115 @@ class Async(val metaservDAO: MetaservDAO) {
     lateinit var headers: HttpHeaders
 
     @POST
-    fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
+    fun createQuery(
+        @QueryParam("QUERY") @FormParam("QUERY") queryParam: String?,
+        @QueryParam("RESPONSEFORMAT") @FormParam("RESPONSEFORMAT") formatParam: String?,
+        postBody: String
+    ): Response {
         val query = queryParam ?: postBody
+        val format = formatParam ?: ""
         LOGGER.info("Recieved query [$query]")
-        val mapper: ObjectMapper
+        var mapper: ObjectMapper? = null
         val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
-        if (ct == MediaType.APPLICATION_XML)
-            mapper = TableMapper()
-        else // JSON as default
+        if (ct == MediaType.APPLICATION_JSON || format.contains("json"))
             mapper = ObjectMapper().registerModule(KotlinModule())
+        if (mapper == null)
+            mapper = TableMapper() // default is VOTable
         return createAsyncQuery(metaservDAO, uri, query, mapper, true)
+    }
+
+    @GET
+    @Path("{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    fun getQueryId(@PathParam("id") queryId: String): Response {
+        val queryTaskFuture = findOutstandingQuery(queryId)
+        if (queryTaskFuture != null) {
+            val queryTask = queryTaskFuture.get(1, TimeUnit.MILLISECONDS)
+            val ret = queryTask.phaseInfo.toString()
+            return Response.ok(ret).build()
+        } else {
+            return Response.status(Response.Status.NOT_FOUND).build()
+        }
+    }
+
+    @GET
+    @Path("{id}/parameters")
+    @Produces(MediaType.APPLICATION_JSON)
+    fun getQueryParams(@PathParam("id") queryId: String): Response {
+        val queryTaskFuture = findOutstandingQuery(queryId)
+        if (queryTaskFuture != null) {
+            val queryTask = queryTaskFuture.get(1, TimeUnit.MILLISECONDS)
+            val params = queryTask.phaseInfo.parameters
+            val ret = "{ 'QUERY': '$params' }"
+            return Response.ok(ret).build()
+        } else {
+            return Response.status(Response.Status.NOT_FOUND).build()
+        }
+    }
+
+    @GET
+    @Path("{id}/error")
+    @Produces(MediaType.APPLICATION_JSON)
+    fun getQueryStatus(@PathParam("id") queryId: String): Response {
+        val queryTaskFuture = findOutstandingQuery(queryId)
+        if (queryTaskFuture != null) {
+            val queryTask = queryTaskFuture.get(1, TimeUnit.MILLISECONDS)
+            val errorFile = queryTask.phaseInfo.errorFile
+            if (errorFile == "")
+                return Response.ok("{ 'ERROR': 'None' }").build()
+            else {
+                val errorFile = getResultFile(queryId, "error")
+                if (errorFile.exists()) {
+                    return Response.status(Response.Status.BAD_REQUEST).entity(errorFile).build()
+                } else return Response.status(Response.Status.NOT_FOUND).build()
+            }
+        } else {
+            return Response.status(Response.Status.NOT_FOUND).build()
+        }
     }
 
     @Timed
     @GET
-    @Path("{id}/results/{result}")
-    @Produces(MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML)
-    fun getQuery(@PathParam("id") queryId: String, @PathParam("result") result: String): Response {
+    @Path("{id}/results")
+    @Produces(MediaType.APPLICATION_JSON)
+    fun getQueryResults(@PathParam("id") queryId: String): Response {
         val queryTaskFuture = findOutstandingQuery(queryId)
         if (queryTaskFuture != null) {
+            val resultUri = getResultUri(uri, queryId, true)
+            val ret = "{ 'RESULT': '$resultUri' }"
+            return Response.ok(ret).build()
+        } else {
+            return Response.status(Response.Status.NOT_FOUND).build()
+        }
+    }
+
+    @Timed
+    @GET
+    @Path("{id}/results/result")
+    @Produces( MediaType.APPLICATION_XML, MediaType.APPLICATION_JSON )
+    fun getQueryResult(
+        @PathParam("id") queryId: String,
+        @QueryParam("RESPONSEFORMAT") formatParam: String?
+    ): Response {
+        val format = formatParam ?: ""
+        val queryTaskFuture = findOutstandingQuery(queryId)
+        if (queryTaskFuture != null && !queryTaskFuture.isDone()) {
             // Block until completion
             queryTaskFuture.get()
-        }
-        val queryDir = Paths.get(CONFIG?.DAX_BASE_PATH, queryId)
-        val resultFile = queryDir.resolve(result).toFile()
+        } else return Response.status(Response.Status.NOT_FOUND).build()
+        val resultFile = getResultFile(queryId, "result")
+        var mt: String = MediaType.APPLICATION_XML // default
         if (resultFile.exists()) {
-            if (result.contains("xml"))
-                return Response.ok(resultFile, MediaType.APPLICATION_XML).build()
-            else // default
-                return Response.ok(resultFile, MediaType.APPLICATION_JSON).build()
+            if (format.contains("json"))
+                mt = MediaType.APPLICATION_JSON
+            else {
+                val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
+                if (ct.contains("json"))
+                    mt = MediaType.APPLICATION_JSON
+            }
+            return Response.ok(resultFile, mt).build()
         }
-        val errorFile = queryDir.resolve("error").toFile()
+        val errorFile = getResultFile(queryId, "error")
         if (errorFile.exists()) {
             return Response.status(Response.Status.BAD_REQUEST).entity(errorFile).build()
         }
@@ -161,24 +241,40 @@ class Async(val metaservDAO: MetaservDAO) {
             // FIXME: We're reasonably certain this will execute, execute a history task
             val queryTaskFuture = EXECUTOR.submit(queryTask)
 
+            // housekeeping
+            queryTask.phaseInfo.parameters = query
+            queryTask.phaseInfo.phase = "EXECUTING"
+
+            if (objectMapper is TableMapper)
+                queryTask.phaseInfo.format = MediaType.APPLICATION_XML
+            else queryTask.phaseInfo.format = MediaType.APPLICATION_JSON
+
             // FIXME: Use a real database (User, Monolithic?)
             OUTSTANDING_QUERY_DATABASE[queryId] = queryTaskFuture
 
-            val createdUriBuilder = uri.baseUriBuilder.path(Async::class.java).path(queryId)
-            val createdUri = if (resultRedirect) {
-                if (objectMapper is TableMapper)
-                    createdUriBuilder.path("results").path("result.xml").build()
-                else // default
-                    createdUriBuilder.path("results").path("result.json").build()
-            } else {
-                createdUriBuilder.build()
-            }
+            val createdUri = getResultUri(uri, queryId, resultRedirect)
             return Response.seeOther(createdUri).build()
         }
 
         private fun stripInstanceIdentifiers(query: Query): Query {
             // Rewrite query to extract database instance information
             return TableNameRewriter().process(query) as Query
+        }
+
+        private fun getResultUri(uri: UriInfo, queryId: String, resultRedirect: Boolean): URI {
+            val createdUriBuilder = uri.baseUriBuilder.path(Async::class.java).path(queryId)
+            val createdUri = if (resultRedirect) {
+                createdUriBuilder.path("results").path("result").build()
+            } else {
+                createdUriBuilder.build()
+            }
+            return createdUri
+        }
+
+        private fun getResultFile(queryId: String, rsType: String): File {
+            val queryDir = Paths.get(CONFIG?.DAX_BASE_PATH, queryId)
+            val resultFile = queryDir.resolve(rsType).toFile()
+            return resultFile
         }
     }
 }

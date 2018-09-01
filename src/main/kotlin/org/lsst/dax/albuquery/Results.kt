@@ -41,6 +41,20 @@ import java.sql.SQLException
 import java.util.NoSuchElementException
 
 /*
+* For keeping track of query phase (state).
+*/
+data class PhaseInfo(
+    var identifier: String = "",
+    var phase: String = "",
+    var parameters: String = "",
+    var format: String = "",
+    var errorFile: String = "",
+    var result: String = ""
+) {
+    override fun toString(): String = "{'ID': '$identifier','PHASE': '$phase','PARAMETERS': '$parameters'}"
+}
+
+/*
 * Default fetch size from the database.
 * We set this to 50k.
 *
