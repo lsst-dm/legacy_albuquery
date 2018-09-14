@@ -48,14 +48,20 @@ class Sync(val metaservDAO: MetaservDAO) {
 
     @Timed
     @POST
-    fun createQuery(@QueryParam("query") @FormParam("query") queryParam: String?, postBody: String): Response {
+    fun createQuery(
+        @QueryParam("QUERY") @FormParam("QUERY") queryParam: String?,
+        @QueryParam("RESPONSEFORMAT") @FormParam("RESPONSEFORMAT") formatParam: String?,
+        postBody: String
+    ): Response {
         val query = queryParam ?: postBody
+        val format = formatParam ?: ""
         LOGGER.info("Recieved query [$query]")
+        var om: ObjectMapper? = null
         val ct = headers.getRequestHeader(HttpHeaders.ACCEPT).get(0)
-        val om: ObjectMapper
-        if (ct == MediaType.APPLICATION_XML)
-            om = TableMapper()
-        else om = ObjectMapper().registerModule(KotlinModule())
+        if (ct == MediaType.APPLICATION_JSON || format.contains("json"))
+            om = ObjectMapper().registerModule(KotlinModule())
+        if (om == null)
+            om = TableMapper() // default: VOTable
         return Async.createAsyncQuery(metaservDAO, uri, query, om, resultRedirect = true)
     }
 
