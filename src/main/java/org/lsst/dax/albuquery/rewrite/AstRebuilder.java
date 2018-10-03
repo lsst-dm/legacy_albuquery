@@ -925,12 +925,20 @@ public class AstRebuilder<C>
     public Node visitShowCatalogs(ShowCatalogs node, C context) {
         return null;
     }
-
+*/
     @Override
     public Node visitShowColumns(ShowColumns node, C context) {
-        return null;
+        QualifiedName table = node.getTable();
+        return new ShowColumns(table);
     }
 
+    @Override
+    protected Node visitBooleanLiteral(BooleanLiteral node, C context) {
+        String value = String.valueOf(node.getValue());
+        return new BooleanLiteral(value);
+    }
+
+    /*
     @Override
     public Node visitShowStats(ShowStats node, C context) {
         return null;

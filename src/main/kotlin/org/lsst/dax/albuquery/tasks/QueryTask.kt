@@ -24,6 +24,7 @@ package org.lsst.dax.albuquery.tasks
 
 import com.facebook.presto.sql.SqlFormatter
 import com.facebook.presto.sql.tree.Query
+import com.facebook.presto.sql.tree.Statement
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.lsst.dax.albuquery.Analyzer.TableAndColumnExtractor
 import org.lsst.dax.albuquery.CONFIG
@@ -57,9 +58,9 @@ class QueryTask(
     val metaservDAO: MetaservDAO,
     val dbUri: URI,
     val queryId: String,
-    val queryStatement: Query,
+    val queryStatement: Statement,
     val qualifiedTables: List<ParsedTable>,
-    val objectMapper: ObjectMapper
+    val objectMapper: ObjectMapper?
 ) : Callable<QueryTask> {
 
     val columnAnalyzer: TableAndColumnExtractor
@@ -71,6 +72,12 @@ class QueryTask(
         queryStatement.accept(columnAnalyzer, null)
     }
 
+    private fun replaceBooleanLiterals(query: String): String {
+        var replacement = query.substringAfter("WHERE ")
+        replacement = replacement.replace("true", "1").replace("false", "0")
+        return query.replaceAfter("WHERE ", replacement)
+    }
+
     override fun call(): QueryTask {
         val resultDir = Files.createDirectory(Paths.get(CONFIG?.DAX_BASE_PATH).resolve(queryId))
         // This might be better off if it's done asynchronously, but we need some of the information
@@ -80,11 +87,15 @@ class QueryTask(
         var query = SqlFormatter.formatSql(queryStatement, Optional.empty())
 
         // FIXME: MySQL specific hack because we can't coax Qserv to ANSI compliance
-        query = query.replace("\"", "`")
+        if (queryStatement is Query)
+            query = query.replace("\"", "`")
+        else query = query.replace("\"", "") // for SHOW COLUMNS case
         // FIXME: hack due to qserv's current parser's limitation on handling top-level groupings
         var regex = """WHERE \(`qserv_(.+)\)$""".toRegex()
         query = query.replace(regex, "WHERE `qserv_$1")
-
+        // FIXME: Really our mysql-proxy should be able to handle Boolean: true or false
+        if (phaseInfo.hasBooleanLiterals)
+            query = replaceBooleanLiterals(query)
         val rowIterator: RowStreamIterator
         try {
             val conn = SERVICE_ACCOUNT_CONNECTIONS.getConnection(dbUri)
@@ -93,7 +104,7 @@ class QueryTask(
             val error = ErrorResponse(ex.message, "SQLException",
                 ex.getSQLState(), ex.errorCode.toString())
             val errorFile = resultDir.resolve("error")
-            objectMapper.writeValue(Files.newBufferedWriter(errorFile), error)
+            objectMapper?.writeValue(Files.newBufferedWriter(errorFile), error)
             phaseInfo.phase = "ERROR"
             phaseInfo.errorFile = errorFile.toString()
             return this
@@ -115,7 +126,7 @@ class QueryTask(
          * @see javax.ws.rs.ext.MessageBodyWriter.isWriteable
          * @see javax.ws.rs.ext.MessageBodyWriter.writeTo
          */
-        objectMapper.writeValue(Files.newBufferedWriter(resultPath), entity)
+        objectMapper?.writeValue(Files.newBufferedWriter(resultPath), entity)
         phaseInfo.phase = "COMPLETED"
         return this
     }
