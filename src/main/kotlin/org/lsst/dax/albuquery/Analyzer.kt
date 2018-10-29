@@ -24,14 +24,15 @@ package org.lsst.dax.albuquery
 
 import com.facebook.presto.sql.parser.ParsingException
 import com.facebook.presto.sql.tree.AliasedRelation
-import com.facebook.presto.sql.tree.QualifiedName
-import com.facebook.presto.sql.tree.DefaultTraversalVisitor
-import com.facebook.presto.sql.tree.Identifier
-import com.facebook.presto.sql.tree.QuerySpecification
 import com.facebook.presto.sql.tree.AllColumns
+import com.facebook.presto.sql.tree.DefaultTraversalVisitor
 import com.facebook.presto.sql.tree.DereferenceExpression
+import com.facebook.presto.sql.tree.Identifier
 import com.facebook.presto.sql.tree.Join
+import com.facebook.presto.sql.tree.QualifiedName
+import com.facebook.presto.sql.tree.QuerySpecification
 import com.facebook.presto.sql.tree.Relation
+import com.facebook.presto.sql.tree.ShowColumns
 import com.facebook.presto.sql.tree.SingleColumn
 import com.facebook.presto.sql.tree.SubqueryExpression
 import com.facebook.presto.sql.tree.Table
@@ -48,6 +49,18 @@ class Analyzer {
         var allColumns = false
 
         override fun visitSubqueryExpression(node: SubqueryExpression?, context: Void?): Void? {
+            return null
+        }
+
+        override fun visitShowColumns(node: ShowColumns?, context: Void?): Void? {
+            if (node != null) {
+                tables.add(ParsedTable(
+                    identifier = node.table.toString(),
+                    qualifiedName = node.table,
+                    alias = null,
+                    position = 1
+                ))
+            }
             return null
         }
 
@@ -183,8 +196,8 @@ class Analyzer {
             return firstTable
         }
 
-        private fun nameOf(name: QualifiedName): String {
-            val suffix = name.originalParts.last()
+        private fun nameOf(name: QualifiedName?): String {
+            val suffix = name!!.originalParts.last()
             return suffix
         }
     }

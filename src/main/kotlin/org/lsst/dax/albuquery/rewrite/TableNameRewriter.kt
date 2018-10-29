@@ -22,11 +22,15 @@
 
 package org.lsst.dax.albuquery.rewrite
 
+import com.facebook.presto.sql.tree.BooleanLiteral
 import com.facebook.presto.sql.tree.Node
 import com.facebook.presto.sql.tree.QualifiedName
+import com.facebook.presto.sql.tree.ShowColumns
 import com.facebook.presto.sql.tree.Table
 
-class TableNameRewriter : AstRebuilder<Void?>() {
+class TableNameRewriter() : AstRebuilder<Void?>() {
+
+    public var hasBooleanLiterals: Boolean = false
 
     override fun visitTable(node: Table, context: Void?): Node? {
         val name = node.name
@@ -35,5 +39,21 @@ class TableNameRewriter : AstRebuilder<Void?>() {
             return Table(QualifiedName.of(strippedName))
         }
         return node
+    }
+
+    override fun visitShowColumns(node: ShowColumns?, context: Void?): Node {
+        val tableName = node?.getTable().toString()
+        val strippedName = tableName.toString().substringAfter(".")
+        return ShowColumns(QualifiedName.of(strippedName))
+    }
+
+    override fun visitBooleanLiteral(node: BooleanLiteral?, context: Void?): Node {
+        if (node != null) {
+            this.hasBooleanLiterals = true
+            val value: Boolean = node.value
+            return BooleanLiteral(value.toString())
+        } else {
+            return BooleanLiteral(null)
+        }
     }
 }

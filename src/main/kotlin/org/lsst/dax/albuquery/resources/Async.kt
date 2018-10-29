@@ -27,6 +27,8 @@ import com.facebook.presto.sql.parser.ParsingException
 import com.facebook.presto.sql.parser.ParsingOptions
 import com.facebook.presto.sql.parser.SqlParser
 import com.facebook.presto.sql.tree.Query
+import com.facebook.presto.sql.tree.ShowColumns
+import com.facebook.presto.sql.tree.Statement
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.annotation.JsonSerialize
 import com.fasterxml.jackson.module.kotlin.KotlinModule
@@ -136,9 +138,9 @@ class Async(val metaservDAO: MetaservDAO) {
             if (errorFile == "")
                 return Response.ok("{ 'ERROR': 'None' }").build()
             else {
-                val errorFile = getResultFile(queryId, "error")
-                if (errorFile.exists()) {
-                    return Response.status(Response.Status.BAD_REQUEST).entity(errorFile).build()
+                val errorMsg = getResultFile(queryId, "error")
+                if (errorMsg.exists()) {
+                    return Response.status(Response.Status.BAD_REQUEST).entity(errorMsg).build()
                 } else return Response.status(Response.Status.NOT_FOUND).build()
             }
         } else {
@@ -207,26 +209,31 @@ class Async(val metaservDAO: MetaservDAO) {
             metaservDAO: MetaservDAO,
             uri: UriInfo,
             query: String,
-            objectMapper: ObjectMapper,
+            objectMapper: ObjectMapper?,
             resultRedirect: Boolean
         ): Response {
             val dbUri: URI
-            val queryStatement: Query
+            val queryStatement: Statement
             val qualifiedTables: List<ParsedTable>
+            val rewriter = TableNameRewriter()
             try {
                 val statement = SqlParser().createStatement(query,
                     ParsingOptions(ParsingOptions.DecimalLiteralTreatment.AS_DOUBLE)
                 )
                 if (statement !is Query) {
-                    val err = ErrorResponse("Only Select Queries allowed", "NotSelectStatementException", null, null)
-                    return Response.status(Response.Status.BAD_REQUEST).entity(err).build()
+                    // allow MAXREC=0 case (as in ShowColumns) to go through
+                    if (statement !is ShowColumns) {
+                        val err = ErrorResponse("Only Select Queries allowed",
+                            "NotSelectStatementException", null, null)
+                        return Response.status(Response.Status.BAD_REQUEST).entity(err).build()
+                    }
                 }
                 val analyzer = Analyzer.TableAndColumnExtractor()
                 statement.accept(analyzer, null)
                 qualifiedTables = analyzer.tables
                 dbUri = Analyzer.getDatabaseURI(metaservDAO, analyzer.tables)
                 // Once we've found the database URI, rewrite the query
-                queryStatement = stripInstanceIdentifiers(statement)
+                queryStatement = preprocessQueryExpressions(rewriter, statement)
             } catch (ex: ParsingException) {
                 val err = ErrorResponse(ex.errorMessage, ex.javaClass.simpleName, null, cause = ex.message)
                 return Response.status(Response.Status.BAD_REQUEST).entity(err).build()
@@ -236,14 +243,22 @@ class Async(val metaservDAO: MetaservDAO) {
             val queryId = UUID.randomUUID().toString()
 
             // FIXME: Switch statement to support different types of tasks (e.g. MySQL, Qserv-specific)
-            val queryTask = QueryTask(metaservDAO, dbUri, queryId, queryStatement, qualifiedTables, objectMapper)
+            val queryTask = QueryTask(
+                metaservDAO,
+                dbUri,
+                queryId,
+                queryStatement,
+                qualifiedTables,
+                objectMapper
+            )
 
             // FIXME: We're reasonably certain this will execute, execute a history task
             val queryTaskFuture = EXECUTOR.submit(queryTask)
 
-            // housekeeping
+            // Housekeeping
             queryTask.phaseInfo.parameters = query
             queryTask.phaseInfo.phase = "EXECUTING"
+            queryTask.phaseInfo.hasBooleanLiterals = rewriter.hasBooleanLiterals
 
             if (objectMapper is TableMapper)
                 queryTask.phaseInfo.format = MediaType.APPLICATION_XML
@@ -256,9 +271,11 @@ class Async(val metaservDAO: MetaservDAO) {
             return Response.seeOther(createdUri).build()
         }
 
-        private fun stripInstanceIdentifiers(query: Query): Query {
+        private fun preprocessQueryExpressions(rewriter: TableNameRewriter, stmt: Statement): Statement {
             // Rewrite query to extract database instance information
-            return TableNameRewriter().process(query) as Query
+            // Mark any boolean literals
+            val stmtRewrite = rewriter.process(stmt) as Statement
+            return stmtRewrite
         }
 
         private fun getResultUri(uri: UriInfo, queryId: String, resultRedirect: Boolean): URI {

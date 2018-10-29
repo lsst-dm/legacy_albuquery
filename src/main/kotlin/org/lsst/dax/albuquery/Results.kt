@@ -44,6 +44,7 @@ import java.util.NoSuchElementException
 * For keeping track of query phase (state).
 */
 data class PhaseInfo(
+    var hasBooleanLiterals: Boolean = false,
     var identifier: String = "",
     var phase: String = "",
     var parameters: String = "",
