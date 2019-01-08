@@ -10,7 +10,7 @@ metadata:
   name: albuquery-ingress
 spec:
   rules:
-  - host: lsst-pdac.ncsa.illinois.edu
+  - host: lsst-lsp-int.ncsa.illinois.edu
     http:
       paths:
       - backend:
