@@ -23,7 +23,6 @@
 package org.lsst.dax.albuquery.tasks
 
 import com.facebook.presto.sql.SqlFormatter
-import com.facebook.presto.sql.tree.Query
 import com.facebook.presto.sql.tree.Statement
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.lsst.dax.albuquery.Analyzer.TableAndColumnExtractor
@@ -82,17 +81,13 @@ class QueryTask(
         val resultDir = Files.createDirectory(Paths.get(CONFIG?.DAX_BASE_PATH).resolve(queryId))
         // This might be better off if it's done asynchronously, but we need some of the information
         val metaservInfo = lookupMetadata(metaservDAO, qualifiedTables)
-
         // Submit for data processing
         var query = SqlFormatter.formatSql(queryStatement, Optional.empty())
-
         // FIXME: MySQL specific hack because we can't coax Qserv to ANSI compliance
-        if (queryStatement is Query)
-            query = query.replace("\"", "`")
-        else query = query.replace("\"", "") // for SHOW COLUMNS case
+        query = query.replace("\"", "")
         // FIXME: hack due to qserv's current parser's limitation on handling top-level groupings
-        var regex = """WHERE \(`qserv_(.+)\)$""".toRegex()
-        query = query.replace(regex, "WHERE `qserv_$1")
+        var regex = """WHERE \(qserv_(.+)\)$""".toRegex()
+        query = query.replace(regex, "WHERE qserv_$1")
         // FIXME: Really our mysql-proxy should be able to handle Boolean: true or false
         if (phaseInfo.hasBooleanLiterals)
             query = replaceBooleanLiterals(query)
