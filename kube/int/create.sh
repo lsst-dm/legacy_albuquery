@@ -1,5 +1,5 @@
 #!/bin/bash -ex
-DAX_NAMESPACE=${DAX_NAMESPACE:-'dax-prod'}
+DAX_NAMESPACE=${DAX_NAMESPACE:-'dax-int'}
 
 kubectl create -f albuquery-deployment.yaml --namespace $DAX_NAMESPACE
 kubectl create -f albuquery-service.yaml --namespace $DAX_NAMESPACE
