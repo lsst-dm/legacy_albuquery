@@ -10,10 +10,10 @@ metadata:
   name: albuquery-ingress
 spec:
   rules:
-  - host: lsst-pdac.ncsa.illinois.edu
+  - host: lsst-lsp-stable.ncsa.illinois.edu
     http:
       paths:
       - backend:
           serviceName: albuquery-service
           servicePort: 8080
-        path: /dev/api/db/v1
+        path: /api/db/v1
