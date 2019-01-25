@@ -1,5 +1,5 @@
 #!/bin/bash -x
-DAX_NAMESPACE=${DAX_NAMESPACE:-'dax-prod'}
+DAX_NAMESPACE=${DAX_NAMESPACE:-'dax-stable'}
 
 kubectl delete ingress albuquery-ingress --namespace $DAX_NAMESPACE
 kubectl delete service albuquery-service --namespace $DAX_NAMESPACE
